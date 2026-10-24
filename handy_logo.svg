@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Fond Creme Handy -->
+  <rect width="512" height="512" rx="115" fill="#FFFDF0"/>
+  <!-- Ombre douce sous le gant -->
+  <ellipse cx="256" cy="448" rx="95" ry="18" fill="#E6E2CC"/>
+  <!-- Gant Cartoon Blanc (4 doigts + manchette) -->
+  <g stroke="#2B1E23" stroke-width="16" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Corps du gant et 4 doigts -->
+    <path d="M 185 370
+             C 145 350, 110 315, 118 282
+             C 125 256, 162 262, 185 292
+             L 168 175
+             C 162 135, 212 128, 222 170
+             L 238 242
+             L 258 162
+             C 268 122, 318 130, 308 175
+             L 292 252
+             L 335 202
+             C 362 175, 402 205, 375 245
+             L 332 315
+             C 345 342, 330 368, 308 375
+             Z" fill="#FFFFFF"/>
+    <!-- Manchette du poignet -->
+    <rect x="178" y="368" width="142" height="44" rx="22" fill="#F2F4F7"/>
+  </g>
+  <!-- Yeux Pie-Cut Retro Animes -->
+  <path d="M 232 275 A 16 22 0 1 1 215 260 L 222 275 Z" fill="#2B1E23"/>
+  <path d="M 284 275 A 16 22 0 1 1 267 260 L 274 275 Z" fill="#2B1E23"/>
+  <!-- Bouche souriante + Langue rose -->
+  <path d="M 222 318 Q 252 325 282 315 Q 278 352 252 352 Q 226 352 222 318 Z" fill="#2B1E23" stroke="#2B1E23" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M 236 338 Q 252 330 268 338 Q 262 350 252 350 Q 242 350 236 338 Z" fill="#FF9CE3"/>
+</svg>

@@ -5,17 +5,40 @@
     android:viewportWidth="512"
     android:viewportHeight="512">
     <group
-        android:scaleX="0.65"
-        android:scaleY="0.65"
-        android:translateX="89"
-        android:translateY="89">
+        android:scaleX="0.72"
+        android:scaleY="0.72"
+        android:translateX="72"
+        android:translateY="68">
+        <!-- Gant Cartoon Blanc -->
         <path
-            android:fillColor="#F5EAFF"
-            android:pathData="M96,176 L416,176 A80,80 0 0,1 496,256 A80,80 0 0,1 416,336 L96,336 A80,80 0 0,1 16,256 A80,80 0 0,1 96,176 Z" />
-        <path
-            android:strokeColor="#1D1B20"
-            android:strokeWidth="22"
+            android:fillColor="#FFFFFF"
+            android:strokeColor="#2B1E23"
+            android:strokeWidth="16"
+            android:strokeLineJoin="round"
             android:strokeLineCap="round"
-            android:pathData="M136,256 L136,258 M184,242 L184,270 M232,222 L232,290 M280,222 L280,290 M328,242 L328,270 M376,256 L376,258" />
+            android:pathData="M185,370 C145,350 110,315 118,282 C125,256 162,262 185,292 L168,175 C162,135 212,128 222,170 L238,242 L258,162 C268,122 318,130 308,175 L292,252 L335,202 C362,175 402,205 375,245 L332,315 C345,342 330,368 308,375 Z" />
+        <!-- Manchette poignet -->
+        <path
+            android:fillColor="#F2F4F7"
+            android:strokeColor="#2B1E23"
+            android:strokeWidth="16"
+            android:strokeLineJoin="round"
+            android:pathData="M200,368 L298,368 A22,22 0 0,1 320,390 A22,22 0 0,1 298,412 L200,412 A22,22 0 0,1 178,390 A22,22 0 0,1 200,368 Z" />
+        <!-- Oeil Gauche Pie-Cut -->
+        <path
+            android:fillColor="#2B1E23"
+            android:pathData="M234,274 A15,21 0 1,1 218,258 L224,274 Z" />
+        <!-- Oeil Droit Pie-Cut -->
+        <path
+            android:fillColor="#2B1E23"
+            android:pathData="M284,274 A15,21 0 1,1 268,258 L274,274 Z" />
+        <!-- Bouche souriante -->
+        <path
+            android:fillColor="#2B1E23"
+            android:pathData="M222,316 Q252,324 282,314 Q278,352 252,352 Q226,352 222,316 Z" />
+        <!-- Langue Rose -->
+        <path
+            android:fillColor="#FF9CE3"
+            android:pathData="M236,336 Q252,328 268,336 Q262,349 252,349 Q242,349 236,336 Z" />
     </group>
 </vector>

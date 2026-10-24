@@ -15,6 +15,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,11 +34,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -46,18 +51,16 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Palette Ultra-Moderne Obsidian & Lavender (inspirée du widget de la photo)
-val ObsidianBg = Color(0xFF0E0C14)
-val SurfaceGlass = Color(0xFF191524)
-val SurfaceElevated = Color(0xFF231E32)
-val BorderLavenderSubtle = Color(0xFF362E4D)
-val HandyDeepPurple = Color(0xFF67298A)
-val HandySoftLavender = Color(0xFFF5EAFF)
-val HandyAccentViolet = Color(0xFFB678E6)
-val StatusEmerald = Color(0xFF34D399)
-val StatusAmber = Color(0xFFFBBF24)
-val TextPrimaryWhite = Color(0xFFF7F4FC)
-val TextSecondaryMuted = Color(0xFFA79EB8)
+// Palette Officielle Handy (identique à la photo de la mascotte Gant & texte rose sur fond crème)
+val HandyCreamBg = Color(0xFFFFFDF0)
+val HandyCardWhite = Color(0xFFFFFFFF)
+val HandySoftCreamCard = Color(0xFFF7F3DF)
+val HandyPink = Color(0xFFFF9CE3)
+val HandyDeepPink = Color(0xFFE86BC5)
+val HandyInkOutline = Color(0xFF2B1E23)
+val HandyMutedBrown = Color(0xFF6E5D63)
+val HandyMintOk = Color(0xFF2ECC71)
+val HandyWarnOrange = Color(0xFFF39C12)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,14 +69,16 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme(
-                colorScheme = darkColorScheme(
-                    primary = HandyDeepPurple,
-                    secondary = HandySoftLavender,
-                    background = ObsidianBg,
-                    surface = SurfaceGlass
+                colorScheme = lightColorScheme(
+                    primary = HandyPink,
+                    onPrimary = HandyInkOutline,
+                    secondary = CheckPurpleBg,
+                    background = HandyCreamBg,
+                    surface = HandyCardWhite,
+                    onSurface = HandyInkOutline
                 )
             ) {
-                HandyRedesignedApp(
+                HandyCartoonApp(
                     context = this,
                     modelManager = modelManager
                 )
@@ -82,34 +87,67 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-enum class NavSection(val titleFr: String, val titleEn: String, val icon: ImageVector) {
-    STUDIO("Accueil & Test", "Home & Playground", Icons.Default.AutoAwesome),
-    MODELS("Modèles Whisper", "Whisper Models", Icons.Default.DownloadForOffline),
-    ENGINE("Appareil Limité", "Low-RAM Engine", Icons.Default.Memory)
+/**
+ * Texte bulle rose avec contour épais brun/noir exactement comme le logo "handy" de la photo !
+ */
+@Composable
+fun HandyBubbleLogoText(
+    text: String = "handy",
+    fontSize: TextUnit = 38.sp
+) {
+    Box(contentAlignment = Alignment.Center) {
+        // Contour épais noir/brun (#2B1E23)
+        Text(
+            text = text,
+            style = TextStyle(
+                color = HandyInkOutline,
+                fontSize = fontSize,
+                fontWeight = FontWeight.Black,
+                drawStyle = Stroke(
+                    width = 14f,
+                    join = StrokeJoin.Round
+                )
+            )
+        )
+        // Intérieur rose bonbon (#FF9CE3)
+        Text(
+            text = text,
+            style = TextStyle(
+                color = HandyPink,
+                fontSize = fontSize,
+                fontWeight = FontWeight.Black
+            )
+        )
+    }
+}
+
+enum class HandySection(val labelFr: String, val labelEn: String, val icon: ImageVector) {
+    HOME("Accueil", "Home", Icons.Default.Mic),
+    MODELS("Modèles Whisper", "Whisper Models", Icons.Default.Download),
+    SETTINGS("Réglages", "Settings", Icons.Default.Tune)
 }
 
 @Composable
-fun HandyRedesignedApp(
+fun HandyCartoonApp(
     context: Context,
     modelManager: WhisperModelManager
 ) {
     val scope = rememberCoroutineScope()
     var isFr by remember { mutableStateOf(true) }
-    var currentSection by remember { mutableStateOf(NavSection.STUDIO) }
+    var currentSection by remember { mutableStateOf(HandySection.HOME) }
 
     val isAccessibilityActive by HandyTextInjectorService.isServiceConnected.collectAsState()
     val isFieldFocused by HandyTextInjectorService.hasEditableFieldFocused.collectAsState()
     val isOverlayServiceRunning by FloatingSttService.isRunning.collectAsState()
 
     var activeModelId by remember { mutableStateOf(modelManager.getActiveModelId()) }
-    var autoShowOnChat by remember { mutableStateOf(modelManager.isAutoShowOnChat()) }
+    var hideWhenNoInput by remember { mutableStateOf(modelManager.isHideBubbleWhenNoInput()) }
     var lowRamMode by remember { mutableStateOf(modelManager.isLowRamEcoMode()) }
     var cpuThreads by remember { mutableIntStateOf(modelManager.getThreadsCount()) }
     var sttLanguage by remember { mutableStateOf(modelManager.getLanguageCode()) }
     var historyList by remember { mutableStateOf(modelManager.getHistory()) }
 
-    // Zone de chat bac à sable intégrée pour tester immédiatement l'écriture directe sans quitter l'app
-    var sandboxChatText by remember { mutableStateOf("") }
+    var testInputText by remember { mutableStateOf("") }
 
     var downloadingModelId by remember { mutableStateOf<String?>(null) }
     var downloadProgress by remember { mutableFloatStateOf(0f) }
@@ -136,7 +174,7 @@ fun HandyRedesignedApp(
         (memInfo.totalMem / (1024 * 1024)).toInt()
     }
 
-    fun startOrStopFloatingOverlay() {
+    fun toggleFloatingService() {
         if (isOverlayServiceRunning) {
             context.startService(Intent(context, FloatingSttService::class.java).apply {
                 action = "ACTION_STOP_SERVICE"
@@ -156,8 +194,8 @@ fun HandyRedesignedApp(
         if (!Settings.canDrawOverlays(context)) {
             Toast.makeText(
                 context,
-                if (isFr) "Autorisez la superposition d'écran pour afficher la pilule Handy"
-                else "Allow overlay permission to display the Handy pill",
+                if (isFr) "Autorisez l'affichage par-dessus les autres applications"
+                else "Please grant Display over other apps permission",
                 Toast.LENGTH_LONG
             ).show()
             context.startActivity(
@@ -180,53 +218,55 @@ fun HandyRedesignedApp(
     }
 
     Scaffold(
-        containerColor = ObsidianBg,
+        containerColor = HandyCreamBg,
         bottomBar = {
-            // Barre de navigation flottante moderne style capsule
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(16.dp, RoundedCornerShape(30.dp))
-                        .clip(RoundedCornerShape(30.dp))
-                        .background(SurfaceGlass)
-                        .border(1.dp, BorderLavenderSubtle, RoundedCornerShape(30.dp))
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(HandyCardWhite)
+                        .border(2.5.dp, HandyInkOutline, RoundedCornerShape(28.dp))
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    NavSection.entries.forEach { sec ->
+                    HandySection.entries.forEach { sec ->
                         val selected = currentSection == sec
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(22.dp))
-                                .background(if (selected) HandyDeepPurple else Color.Transparent)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (selected) HandyPink else Color.Transparent)
+                                .then(
+                                    if (selected) Modifier.border(2.dp, HandyInkOutline, RoundedCornerShape(20.dp))
+                                    else Modifier
+                                )
                                 .clickable {
                                     currentSection = sec
                                     historyList = modelManager.getHistory()
                                 }
-                                .padding(horizontal = 16.dp, vertical = 10.dp)
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
                             Icon(
                                 imageVector = sec.icon,
                                 contentDescription = null,
-                                tint = if (selected) HandySoftLavender else TextSecondaryMuted,
-                                modifier = Modifier.size(19.dp)
+                                tint = HandyInkOutline,
+                                modifier = Modifier.size(20.dp)
                             )
                             AnimatedVisibility(visible = selected) {
                                 Row {
-                                    Spacer(Modifier.width(8.dp))
+                                    Spacer(Modifier.width(6.dp))
                                     Text(
-                                        text = if (isFr) sec.titleFr else sec.titleEn,
-                                        color = HandySoftLavender,
+                                        text = if (isFr) sec.labelFr else sec.labelEn,
+                                        color = HandyInkOutline,
                                         fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.ExtraBold
                                     )
                                 }
                             }
@@ -235,242 +275,214 @@ fun HandyRedesignedApp(
                 }
             }
         }
-    ) { innerPadding ->
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(padding)
                 .padding(horizontal = 18.dp)
         ) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
-            // En-tête Design avec badge de modèle et bouton FR/EN
+            // En-tête officiel avec la Mascotte Gant + Texte Bulle Rose "handy"
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                        contentDescription = "Handy Mascot",
                         modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(HandyDeepPurple, Color(0xFF9C4DCC))
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.GraphicEq,
-                            contentDescription = null,
-                            tint = HandySoftLavender,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
+                            .size(58.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(HandySoftCreamCard)
+                            .border(2.5.dp, HandyInkOutline, RoundedCornerShape(16.dp))
+                    )
                     Spacer(Modifier.width(12.dp))
                     Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Handy",
-                                color = TextPrimaryWhite,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(HandySoftLavender)
-                                    .padding(horizontal = 7.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "DIRECT CHAT",
-                                    color = WaveDarkInk,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.ExtraBold
-                                )
-                            }
-                        }
+                        HandyBubbleLogoText(text = "handy", fontSize = 32.sp)
                         Text(
-                            text = if (isFr) "Zéro presse-papier • Écrit uniquement dans vos zones de texte"
-                            else "Zero clipboard • Writes strictly inside focused text fields",
-                            color = TextSecondaryMuted,
-                            fontSize = 11.sp
+                            text = if (isFr) "Dictée vocale directe dans vos zones de texte"
+                            else "Direct voice typing inside text input fields",
+                            color = HandyMutedBrown,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
 
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(SurfaceElevated)
-                        .border(1.dp, BorderLavenderSubtle, RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(HandyPink)
+                        .border(2.dp, HandyInkOutline, RoundedCornerShape(12.dp))
                         .clickable { isFr = !isFr }
-                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
                         text = if (isFr) "FR" else "EN",
-                        color = HandySoftLavender,
+                        color = HandyInkOutline,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Black
                     )
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(14.dp))
 
             when (currentSection) {
-                NavSection.STUDIO -> {
+                HandySection.HOME -> {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // Carte Héro : Vitrine du Widget de la photo + Contrôle Maître
-                        Box(
+                        // Carte Principale Style Handy Cartoon
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(24.dp))
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(Color(0xFF28173B), SurfaceGlass)
-                                    )
-                                )
-                                .border(1.dp, BorderLavenderSubtle, RoundedCornerShape(24.dp))
-                                .padding(20.dp)
+                                .background(HandyCardWhite)
+                                .border(2.5.dp, HandyInkOutline, RoundedCornerShape(24.dp))
+                                .padding(18.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                // Reproduction fidèle et interactive du widget de la photo
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    modifier = Modifier.padding(vertical = 8.dp)
+                            // Aperçu Bulle Inactive (Micro) -> Barre Active (Croix + Onde + Check)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Bulle Inactive : Microphone
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(HandyPink)
+                                        .border(2.dp, HandyInkOutline, CircleShape),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(54.dp)
-                                            .shadow(8.dp, CircleShape)
-                                            .clip(CircleShape)
-                                            .background(PillLavenderBg),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = null,
-                                            tint = WaveDarkInk,
-                                            modifier = Modifier.size(25.dp)
-                                        )
-                                    }
+                                    Icon(Icons.Default.Mic, contentDescription = null, tint = HandyInkOutline)
+                                }
 
-                                    Box(
-                                        modifier = Modifier
-                                            .width(148.dp)
-                                            .height(54.dp)
-                                            .shadow(8.dp, RoundedCornerShape(27.dp))
-                                            .clip(RoundedCornerShape(27.dp))
-                                            .background(PillLavenderBg)
-                                            .padding(horizontal = 18.dp),
-                                        contentAlignment = Alignment.Center
+                                Icon(Icons.Default.ArrowForward, contentDescription = null, tint = HandyMutedBrown)
+
+                                // Barre Active : [ X ] [ ••|||||•• ] [ ✓ ]
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(PillLavenderBg)
+                                        .border(1.5.dp, HandyInkOutline, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = null, tint = WaveDarkInk, modifier = Modifier.size(20.dp))
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .width(105.dp)
+                                        .height(44.dp)
+                                        .clip(RoundedCornerShape(22.dp))
+                                        .background(PillLavenderBg)
+                                        .border(1.5.dp, HandyInkOutline, RoundedCornerShape(22.dp))
+                                        .padding(horizontal = 12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    val demoBars = listOf(4.dp, 5.dp, 9.dp, 13.dp, 16.dp, 18.dp, 16.dp, 13.dp, 9.dp, 5.dp, 4.dp)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        val bars = listOf(5.dp, 6.dp, 10.dp, 14.dp, 18.dp, 20.dp, 18.dp, 14.dp, 10.dp, 6.dp, 5.dp)
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            bars.forEach { h ->
-                                                Box(
-                                                    modifier = Modifier
-                                                        .width(4.5.dp)
-                                                        .height(h)
-                                                        .clip(RoundedCornerShape(50))
-                                                        .background(WaveDarkInk)
-                                                )
-                                            }
+                                        demoBars.forEach { h ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .width(3.5.dp)
+                                                    .height(h)
+                                                    .clip(RoundedCornerShape(50))
+                                                    .background(WaveDarkInk)
+                                            )
                                         }
-                                    }
-
-                                    Box(
-                                        modifier = Modifier
-                                            .size(54.dp)
-                                            .shadow(8.dp, CircleShape)
-                                            .clip(CircleShape)
-                                            .background(CheckPurpleBg),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(25.dp)
-                                        )
                                     }
                                 }
 
-                                Spacer(Modifier.height(10.dp))
-
-                                Text(
-                                    text = if (isFr) "Verrouillé sur les zones d'écriture"
-                                    else "Locked to Editable Input Fields",
-                                    color = HandySoftLavender,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = if (isFr) "La dictée s'active uniquement quand votre curseur est dans un chat, un message ou une barre de recherche. Rien n'est copié dans le presse-papier."
-                                    else "Dictation triggers only when your cursor is inside a chat, message or search bar. Nothing is ever copied to the clipboard.",
-                                    color = TextSecondaryMuted,
-                                    fontSize = 12.sp
-                                )
-
-                                Spacer(Modifier.height(16.dp))
-
-                                Button(
-                                    onClick = { startOrStopFloatingOverlay() },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isOverlayServiceRunning) Color(0xFF3B2447) else HandyDeepPurple
-                                    ),
-                                    shape = RoundedCornerShape(14.dp),
+                                Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp)
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(CheckPurpleBg)
+                                        .border(1.5.dp, HandyInkOutline, CircleShape),
+                                    contentAlignment = Alignment.Center
                                 ) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                }
+                            }
+
+                            Spacer(Modifier.height(14.dp))
+
+                            Text(
+                                text = if (isFr) "Actif uniquement dans les zones de texte"
+                                else "Active strictly inside text input fields",
+                                color = HandyInkOutline,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = if (isFr) "La bulle Micro apparaît dès que vous cliquez dans un champ d'écriture et écrit directement votre voix sans copier dans le presse-papier."
+                                else "The Mic bubble pops up whenever you tap a text input field and types your voice directly without touching the clipboard.",
+                                color = HandyMutedBrown,
+                                fontSize = 12.sp
+                            )
+
+                            Spacer(Modifier.height(14.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (isOverlayServiceRunning) HandySoftCreamCard else HandyPink)
+                                    .border(2.5.dp, HandyInkOutline, RoundedCornerShape(16.dp))
+                                    .clickable { toggleFloatingService() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        imageVector = if (isOverlayServiceRunning) Icons.Default.VisibilityOff else Icons.Default.MicExternalOn,
+                                        imageVector = if (isOverlayServiceRunning) Icons.Default.StopCircle else Icons.Default.Mic,
                                         contentDescription = null,
-                                        tint = HandySoftLavender
+                                        tint = HandyInkOutline
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         text = if (isOverlayServiceRunning) {
-                                            if (isFr) "Désactiver la bulle flottante" else "Stop Floating Pill"
+                                            if (isFr) "Arrêter la bulle Handy" else "Stop Handy Bubble"
                                         } else {
-                                            if (isFr) "Lancer la bulle Handy Hors-App" else "Launch Floating Handy Pill"
+                                            if (isFr) "Activer la bulle Micro Handy" else "Start Handy Mic Bubble"
                                         },
-                                        color = HandySoftLavender,
-                                        fontWeight = FontWeight.Bold,
+                                        color = HandyInkOutline,
+                                        fontWeight = FontWeight.Black,
                                         fontSize = 14.sp
                                     )
                                 }
                             }
                         }
 
-                        // Grille des 2 Permissions requises (Accessibilité + Superposition)
+                        // Cartes des 2 autorisations requises
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            StatusPermissionCard(
+                            CartoonStatusCard(
                                 modifier = Modifier.weight(1f),
-                                title = if (isFr) "Détecteur de Chat" else "Chat Detector",
-                                subtitle = if (isAccessibilityActive) {
-                                    if (isFr) "Actif (Prêt à écrire)" else "Active (Ready)"
+                                title = if (isFr) "1. Accès Texte" else "1. Text Access",
+                                status = if (isAccessibilityActive) {
+                                    if (isFr) "Activé ✓" else "Enabled ✓"
                                 } else {
-                                    if (isFr) "Requis : Activer ici" else "Required: Tap here"
+                                    if (isFr) "Activer ici" else "Enable here"
                                 },
                                 isOk = isAccessibilityActive,
                                 onClick = {
@@ -479,13 +491,13 @@ fun HandyRedesignedApp(
                             )
 
                             val overlayOk = Settings.canDrawOverlays(context)
-                            StatusPermissionCard(
+                            CartoonStatusCard(
                                 modifier = Modifier.weight(1f),
-                                title = if (isFr) "Bulle Hors-App" else "Overlay Pill",
-                                subtitle = if (overlayOk) {
-                                    if (isFr) "Autorisé" else "Granted"
+                                title = if (isFr) "2. Bulle Écran" else "2. Overlay",
+                                status = if (overlayOk) {
+                                    if (isFr) "Autorisé ✓" else "Granted ✓"
                                 } else {
-                                    if (isFr) "Autoriser l'écran" else "Grant Overlay"
+                                    if (isFr) "Autoriser ici" else "Grant here"
                                 },
                                 isOk = overlayOk,
                                 onClick = {
@@ -499,13 +511,13 @@ fun HandyRedesignedApp(
                             )
                         }
 
-                        // Zone de test en direct ("Chat Sandbox") pour essayer immédiatement sans quitter l'application
+                        // Zone de saisie de texte de test direct
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(SurfaceGlass)
-                                .border(1.dp, BorderLavenderSubtle, RoundedCornerShape(18.dp))
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(HandyCardWhite)
+                                .border(2.5.dp, HandyInkOutline, RoundedCornerShape(20.dp))
                                 .padding(16.dp)
                         ) {
                             Row(
@@ -513,39 +525,27 @@ fun HandyRedesignedApp(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.ChatBubbleOutline,
-                                        contentDescription = null,
-                                        tint = HandyAccentViolet,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = if (isFr) "Zone de Chat Test (Essayez ici !)"
-                                        else "Live Chat Sandbox (Try it here!)",
-                                        color = TextPrimaryWhite,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                                Text(
+                                    text = if (isFr) "Zone de saisie test" else "Test Text Input Box",
+                                    color = HandyInkOutline,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
 
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(
-                                            if (isFieldFocused) StatusEmerald.copy(alpha = 0.18f)
-                                            else SurfaceElevated
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        .background(if (isFieldFocused) HandyMintOk.copy(alpha = 0.2f) else HandySoftCreamCard)
+                                        .border(1.5.dp, HandyInkOutline, RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
                                 ) {
                                     Text(
                                         text = if (isFieldFocused) {
-                                            if (isFr) "● Champ détecté" else "● Input Focused"
+                                            if (isFr) "Zone de saisie active ✓" else "Text input focused ✓"
                                         } else {
-                                            if (isFr) "○ Aucun champ" else "○ No Input"
+                                            if (isFr) "Touchez le champ ↓" else "Tap box below ↓"
                                         },
-                                        color = if (isFieldFocused) StatusEmerald else TextSecondaryMuted,
+                                        color = HandyInkOutline,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -555,89 +555,67 @@ fun HandyRedesignedApp(
                             Spacer(Modifier.height(10.dp))
 
                             OutlinedTextField(
-                                value = sandboxChatText,
-                                onValueChange = { sandboxChatText = it },
+                                value = testInputText,
+                                onValueChange = { testInputText = it },
                                 placeholder = {
                                     Text(
-                                        text = if (isFr) "Touchez ici pour ouvrir le curseur, puis parlez avec la bulle Handy..."
-                                        else "Tap here to focus cursor, then speak using the Handy pill...",
-                                        fontSize = 12.sp,
-                                        color = TextSecondaryMuted
+                                        text = if (isFr) "Cliquez ici pour activer le curseur et tester le micro..."
+                                        else "Tap here to focus cursor and test the mic bubble...",
+                                        color = HandyMutedBrown,
+                                        fontSize = 12.sp
                                     )
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
+                                shape = RoundedCornerShape(14.dp)
                             )
                         }
 
-                        // Historique des messages injectés dans les chats
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (isFr) "Derniers messages écrits en direct"
-                                else "Recent Direct Chat Injections",
-                                color = TextPrimaryWhite,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            if (historyList.isNotEmpty()) {
+                        // Historique des phrases écrites
+                        if (historyList.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text(
-                                    text = if (isFr) "Effacer" else "Clear",
-                                    color = HandyAccentViolet,
+                                    text = if (isFr) "Dernières saisies vocales" else "Recent Voice Typings",
+                                    color = HandyInkOutline,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                Text(
+                                    text = if (isFr) "Vider" else "Clear",
+                                    color = HandyDeepPink,
                                     fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
                                     modifier = Modifier.clickable {
                                         modelManager.clearHistory()
                                         historyList = emptyList()
                                     }
                                 )
                             }
-                        }
 
-                        if (historyList.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(SurfaceGlass)
-                                    .padding(20.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (isFr) "Vos messages écrits par la voix dans vos chats apparaîtront ici."
-                                    else "Messages dictated directly into your chats will appear here.",
-                                    color = TextSecondaryMuted,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        } else {
                             val sdf = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-                            historyList.take(8).forEach { entry ->
-                                Row(
+                            historyList.take(6).forEach { item ->
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(14.dp))
-                                        .background(SurfaceGlass)
-                                        .border(1.dp, BorderLavenderSubtle, RoundedCornerShape(14.dp))
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .background(HandyCardWhite)
+                                        .border(2.dp, HandyInkOutline, RoundedCornerShape(14.dp))
+                                        .padding(12.dp)
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = entry.text,
-                                            color = TextPrimaryWhite,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(
-                                            text = "${sdf.format(Date(entry.timestamp))} • Injecté dans ${entry.targetApp.substringAfterLast('.')} • ${entry.modelUsed}",
-                                            color = TextSecondaryMuted,
-                                            fontSize = 10.sp
-                                        )
-                                    }
+                                    Text(
+                                        text = item.text,
+                                        color = HandyInkOutline,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "${sdf.format(Date(item.timestamp))} • ${item.modelUsed}",
+                                        color = HandyMutedBrown,
+                                        fontSize = 10.sp
+                                    )
                                 }
                             }
                         }
@@ -646,39 +624,33 @@ fun HandyRedesignedApp(
                     }
                 }
 
-                NavSection.MODELS -> {
-                    // En-tête de diagnostic RAM de l'appareil
+                HandySection.MODELS -> {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
-                            .background(SurfaceElevated)
-                            .border(1.dp, BorderLavenderSubtle, RoundedCornerShape(16.dp))
-                            .padding(14.dp),
+                            .background(HandySoftCreamCard)
+                            .border(2.dp, HandyInkOutline, RoundedCornerShape(16.dp))
+                            .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (isFr) "Mémoire RAM détectée : ${deviceTotalRamMb} Mo"
-                                else "Detected Device RAM: ${deviceTotalRamMb} MB",
-                                color = HandySoftLavender,
+                                text = if (isFr) "RAM de l'appareil : ${deviceTotalRamMb} Mo"
+                                else "Device RAM: ${deviceTotalRamMb} MB",
+                                color = HandyInkOutline,
                                 fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.ExtraBold
                             )
                             Text(
-                                text = if (isFr) "Les modèles Q5_1 sont compressés sur 5 bits pour tourner sans ralentir votre appareil."
-                                else "Q5_1 models are 5-bit quantized to run smoothly without slowing down your device.",
-                                color = TextSecondaryMuted,
+                                text = if (isFr) "Modèles Whisper quantifiés Q5_1 pour appareils limités."
+                                else "Quantized Q5_1 Whisper models for limited devices.",
+                                color = HandyMutedBrown,
                                 fontSize = 11.sp
                             )
                         }
-                        Icon(
-                            imageVector = Icons.Default.Speed,
-                            contentDescription = null,
-                            tint = StatusEmerald,
-                            modifier = Modifier.size(26.dp)
-                        )
+                        Icon(Icons.Default.Memory, contentDescription = null, tint = HandyInkOutline)
                     }
 
                     Spacer(Modifier.height(12.dp))
@@ -698,101 +670,70 @@ fun HandyRedesignedApp(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(18.dp))
-                                    .background(SurfaceGlass)
-                                    .border(
-                                        width = if (isSelected) 2.dp else 1.dp,
-                                        color = if (isSelected) HandySoftLavender else BorderLavenderSubtle,
-                                        shape = RoundedCornerShape(18.dp)
-                                    )
-                                    .padding(16.dp)
+                                    .background(if (isSelected) Color(0xFFFFF0FA) else HandyCardWhite)
+                                    .border(2.5.dp, HandyInkOutline, RoundedCornerShape(18.dp))
+                                    .padding(14.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = spec.title,
+                                        color = HandyInkOutline,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(HandyPink)
+                                            .border(1.5.dp, HandyInkOutline, RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
                                         Text(
-                                            text = spec.title,
-                                            color = TextPrimaryWhite,
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.Bold
+                                            text = spec.badge,
+                                            color = HandyInkOutline,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black
                                         )
-                                        Spacer(Modifier.width(8.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(SurfaceElevated)
-                                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                                        ) {
-                                            Text(
-                                                text = spec.badge,
-                                                color = HandyAccentViolet,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
-
-                                    if (spec.isLowRamRecommended) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(StatusEmerald.copy(alpha = 0.16f))
-                                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                                        ) {
-                                            Text(
-                                                text = "ÉCO RAM",
-                                                color = StatusEmerald,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.ExtraBold
-                                            )
-                                        }
                                     }
                                 }
 
-                                Spacer(Modifier.height(6.dp))
-
+                                Spacer(Modifier.height(4.dp))
                                 Text(
                                     text = if (isFr) spec.descFr else spec.descEn,
-                                    color = TextSecondaryMuted,
+                                    color = HandyMutedBrown,
                                     fontSize = 12.sp
                                 )
-
-                                Spacer(Modifier.height(10.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "📦 ${spec.sizeMb} MB   •   ⚡ ${spec.speedFactor}   •   🧠 ~${spec.ramRequiredMb} MB RAM",
-                                        color = HandySoftLavender,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    text = "📦 ${spec.sizeMb} MB  •  ⚡ ${spec.speedFactor}  •  🧠 ~${spec.ramRequiredMb} MB RAM",
+                                    color = HandyInkOutline,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
 
                                 if (isDownloadingThis) {
-                                    Spacer(Modifier.height(10.dp))
+                                    Spacer(Modifier.height(8.dp))
                                     LinearProgressIndicator(
                                         progress = { downloadProgress },
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(6.dp)
-                                            .clip(RoundedCornerShape(3.dp)),
-                                        color = HandySoftLavender
+                                            .height(8.dp)
+                                            .clip(RoundedCornerShape(4.dp)),
+                                        color = HandyDeepPink
                                     )
-                                    Spacer(Modifier.height(4.dp))
                                     Text(
                                         text = "${(downloadProgress * 100).toInt()}% ($downloadedMb MB / $totalMb MB)",
-                                        color = HandySoftLavender,
-                                        fontSize = 11.sp
+                                        color = HandyInkOutline,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
 
-                                Spacer(Modifier.height(12.dp))
+                                Spacer(Modifier.height(10.dp))
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -808,50 +749,51 @@ fun HandyRedesignedApp(
                                         ) {
                                             Text(
                                                 text = if (isFr) "Supprimer" else "Delete",
-                                                color = TextSecondaryMuted,
-                                                fontSize = 12.sp
+                                                color = HandyMutedBrown,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
                                             )
                                         }
                                         Spacer(Modifier.width(8.dp))
                                     }
 
-                                    Button(
-                                        enabled = downloadingModelId == null,
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (isSelected) HandySoftLavender else HandyDeepPurple
-                                        ),
-                                        onClick = {
-                                            if (isInstalled) {
-                                                modelManager.setActiveModelId(spec.id)
-                                                activeModelId = spec.id
-                                            } else {
-                                                downloadingModelId = spec.id
-                                                downloadProgress = 0f
-                                                scope.launch {
-                                                    val ok = modelManager.downloadModel(spec) { ratio, dl, tot ->
-                                                        downloadProgress = ratio
-                                                        downloadedMb = dl
-                                                        totalMb = tot
-                                                    }
-                                                    downloadingModelId = null
-                                                    isInstalled = ok
-                                                    if (ok) {
-                                                        modelManager.setActiveModelId(spec.id)
-                                                        activeModelId = spec.id
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(if (isSelected) HandyMintOk else HandyPink)
+                                            .border(2.dp, HandyInkOutline, RoundedCornerShape(12.dp))
+                                            .clickable(enabled = downloadingModelId == null) {
+                                                if (isInstalled) {
+                                                    modelManager.setActiveModelId(spec.id)
+                                                    activeModelId = spec.id
+                                                } else {
+                                                    downloadingModelId = spec.id
+                                                    downloadProgress = 0f
+                                                    scope.launch {
+                                                        val ok = modelManager.downloadModel(spec) { ratio, dl, tot ->
+                                                            downloadProgress = ratio
+                                                            downloadedMb = dl
+                                                            totalMb = tot
+                                                        }
+                                                        downloadingModelId = null
+                                                        isInstalled = ok
+                                                        if (ok) {
+                                                            modelManager.setActiveModelId(spec.id)
+                                                            activeModelId = spec.id
+                                                        }
                                                     }
                                                 }
                                             }
-                                        }
+                                            .padding(horizontal = 14.dp, vertical = 8.dp)
                                     ) {
                                         Text(
                                             text = when {
-                                                isSelected && isInstalled -> if (isFr) "✓ Modèle Actif" else "✓ Active Model"
-                                                isInstalled -> if (isFr) "Activer" else "Select"
+                                                isSelected && isInstalled -> if (isFr) "✓ Actif" else "✓ Active"
+                                                isInstalled -> if (isFr) "Choisir" else "Select"
                                                 else -> if (isFr) "Télécharger (${spec.sizeMb} Mo)" else "Download (${spec.sizeMb} MB)"
                                             },
-                                            color = if (isSelected) WaveDarkInk else TextPrimaryWhite,
-                                            fontWeight = FontWeight.Bold,
+                                            color = HandyInkOutline,
+                                            fontWeight = FontWeight.Black,
                                             fontSize = 12.sp
                                         )
                                     }
@@ -861,32 +803,30 @@ fun HandyRedesignedApp(
                     }
                 }
 
-                NavSection.ENGINE -> {
+                HandySection.SETTINGS -> {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Option 1 : Apparition automatique quand on clique dans un chat
-                        SettingToggleCard(
-                            title = if (isFr) "Apparition auto dans les chats"
-                            else "Auto-Popup Inside Chats",
-                            desc = if (isFr) "Affiche automatiquement la bulle Handy dès que vous touchez une zone d'écriture (WhatsApp, Discord, Messages...)."
-                            else "Automatically displays the Handy pill whenever you tap an editable text field.",
-                            checked = autoShowOnChat,
+                        CartoonToggleCard(
+                            title = if (isFr) "Masquer hors des zones de saisie"
+                            else "Hide Outside Text Input Fields",
+                            desc = if (isFr) "La bulle Micro n'apparaît QUE lorsque votre curseur se trouve dans une zone où l'on peut écrire du texte."
+                            else "The Mic bubble only appears when your cursor is inside an editable text box.",
+                            checked = hideWhenNoInput,
                             onCheckedChange = {
-                                autoShowOnChat = it
-                                modelManager.setAutoShowOnChat(it)
+                                hideWhenNoInput = it
+                                modelManager.setHideBubbleWhenNoInput(it)
                             }
                         )
 
-                        // Option 2 : Mode Éco RAM pour appareils limités
-                        SettingToggleCard(
-                            title = if (isFr) "Mode Ultra Low-RAM (Appareil Limité)"
-                            else "Ultra Low-RAM Mode (Limited Device)",
-                            desc = if (isFr) "Purge immédiatement la mémoire audio après chaque phrase écrite et évite tout stockage lourd en RAM."
-                            else "Immediately purges audio buffers after each dictated sentence to save RAM.",
+                        CartoonToggleCard(
+                            title = if (isFr) "Mode Éco RAM (Appareil Limité)"
+                            else "Low-RAM Eco Mode (Limited Device)",
+                            desc = if (isFr) "Libère immédiatement la mémoire audio après chaque phrase dictée."
+                            else "Immediately frees audio buffers right after each dictation.",
                             checked = lowRamMode,
                             onCheckedChange = {
                                 lowRamMode = it
@@ -894,28 +834,20 @@ fun HandyRedesignedApp(
                             }
                         )
 
-                        // Option 3 : Nombre de threads CPU
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(18.dp))
-                                .background(SurfaceGlass)
-                                .border(1.dp, BorderLavenderSubtle, RoundedCornerShape(18.dp))
+                                .background(HandyCardWhite)
+                                .border(2.5.dp, HandyInkOutline, RoundedCornerShape(18.dp))
                                 .padding(16.dp)
                         ) {
                             Text(
-                                text = if (isFr) "Coeurs CPU alloués à Whisper : $cpuThreads threads"
-                                else "CPU Cores allocated to Whisper: $cpuThreads threads",
-                                color = TextPrimaryWhite,
+                                text = if (isFr) "Threads CPU Whisper : $cpuThreads coeurs"
+                                else "Whisper CPU Threads: $cpuThreads cores",
+                                color = HandyInkOutline,
                                 fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = if (isFr) "Sur un appareil limité, gardez 2 threads pour éviter toute chauffe et garder l'interface fluide."
-                                else "On a limited device, keep 2 threads to prevent overheating and UI lag.",
-                                color = TextSecondaryMuted,
-                                fontSize = 11.sp
+                                fontWeight = FontWeight.ExtraBold
                             )
                             Slider(
                                 value = cpuThreads.toFloat(),
@@ -928,20 +860,19 @@ fun HandyRedesignedApp(
                             )
                         }
 
-                        // Option 4 : Langue de dictée
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(18.dp))
-                                .background(SurfaceGlass)
-                                .border(1.dp, BorderLavenderSubtle, RoundedCornerShape(18.dp))
+                                .background(HandyCardWhite)
+                                .border(2.5.dp, HandyInkOutline, RoundedCornerShape(18.dp))
                                 .padding(16.dp)
                         ) {
                             Text(
-                                text = if (isFr) "Langue de dictée vocale" else "Voice Dictation Language",
-                                color = TextPrimaryWhite,
+                                text = if (isFr) "Langue de dictée" else "Dictation Language",
+                                color = HandyInkOutline,
                                 fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.ExtraBold
                             )
                             Spacer(Modifier.height(10.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -953,24 +884,20 @@ fun HandyRedesignedApp(
                                     val active = sttLanguage == code
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(if (active) HandyDeepPurple else SurfaceElevated)
-                                            .border(
-                                                1.dp,
-                                                if (active) HandySoftLavender else BorderLavenderSubtle,
-                                                RoundedCornerShape(10.dp)
-                                            )
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(if (active) HandyPink else HandySoftCreamCard)
+                                            .border(2.dp, HandyInkOutline, RoundedCornerShape(12.dp))
                                             .clickable {
                                                 sttLanguage = code
                                                 modelManager.setLanguageCode(code)
                                             }
-                                            .padding(horizontal = 14.dp, vertical = 9.dp)
+                                            .padding(horizontal = 12.dp, vertical = 8.dp)
                                     ) {
                                         Text(
                                             text = label,
-                                            color = if (active) HandySoftLavender else TextSecondaryMuted,
+                                            color = HandyInkOutline,
                                             fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold
+                                            fontWeight = FontWeight.Black
                                         )
                                     }
                                 }
@@ -984,55 +911,39 @@ fun HandyRedesignedApp(
 }
 
 @Composable
-fun StatusPermissionCard(
+fun CartoonStatusCard(
     modifier: Modifier = Modifier,
     title: String,
-    subtitle: String,
+    status: String,
     isOk: Boolean,
     onClick: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(SurfaceGlass)
-            .border(
-                width = 1.dp,
-                color = if (isOk) StatusEmerald.copy(alpha = 0.5f) else StatusAmber.copy(alpha = 0.6f),
-                shape = RoundedCornerShape(16.dp)
-            )
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (isOk) Color(0xFFEAFBF1) else Color(0xFFFFF4E5))
+            .border(2.5.dp, HandyInkOutline, RoundedCornerShape(18.dp))
             .clickable { onClick() }
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(14.dp)
     ) {
-        Icon(
-            imageVector = if (isOk) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
-            contentDescription = null,
-            tint = if (isOk) StatusEmerald else StatusAmber,
-            modifier = Modifier.size(22.dp)
+        Text(
+            text = title,
+            color = HandyInkOutline,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.ExtraBold
         )
-        Spacer(Modifier.width(10.dp))
-        Column {
-            Text(
-                text = title,
-                color = TextPrimaryWhite,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = subtitle,
-                color = if (isOk) StatusEmerald else StatusAmber,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = status,
+            color = if (isOk) Color(0xFF1B8045) else Color(0xFFB76E00),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Black
+        )
     }
 }
 
 @Composable
-fun SettingToggleCard(
+fun CartoonToggleCard(
     title: String,
     desc: String,
     checked: Boolean,
@@ -1042,8 +953,8 @@ fun SettingToggleCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(SurfaceGlass)
-            .border(1.dp, BorderLavenderSubtle, RoundedCornerShape(18.dp))
+            .background(HandyCardWhite)
+            .border(2.5.dp, HandyInkOutline, RoundedCornerShape(18.dp))
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
@@ -1051,14 +962,14 @@ fun SettingToggleCard(
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
             Text(
                 text = title,
-                color = TextPrimaryWhite,
+                color = HandyInkOutline,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.ExtraBold
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 text = desc,
-                color = TextSecondaryMuted,
+                color = HandyMutedBrown,
                 fontSize = 11.sp
             )
         }

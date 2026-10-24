@@ -133,10 +133,10 @@ class WhisperModelManager(private val context: Context) {
         prefs.edit().putString("active_model_id", id).apply()
     }
 
-    fun isAutoShowOnChat(): Boolean = prefs.getBoolean("auto_show_on_chat", true)
+    fun isHideBubbleWhenNoInput(): Boolean = prefs.getBoolean("hide_when_no_input", true)
 
-    fun setAutoShowOnChat(enabled: Boolean) {
-        prefs.edit().putBoolean("auto_show_on_chat", enabled).apply()
+    fun setHideBubbleWhenNoInput(enabled: Boolean) {
+        prefs.edit().putBoolean("hide_when_no_input", enabled).apply()
     }
 
     fun isLowRamEcoMode(): Boolean = prefs.getBoolean("low_ram_eco_mode", true)
@@ -204,7 +204,7 @@ class WhisperModelManager(private val context: Context) {
                     instanceFollowRedirects = true
                     connectTimeout = 15000
                     readTimeout = 20000
-                    setRequestProperty("User-Agent", "HandyMobile/2.0")
+                    setRequestProperty("User-Agent", "HandyMobile/3.0")
                 }
                 val code = conn.responseCode
                 if (code in 301..308 && redirects < 6) {

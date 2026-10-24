@@ -34,7 +34,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -70,10 +69,12 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.math.sqrt
 
-// Palette exacte de la photo
+// Couleurs de la pilule vocale
 val PillLavenderBg = Color(0xFFF5EAFF)
 val CheckPurpleBg = Color(0xFF67298A)
 val WaveDarkInk = Color(0xFF1D1B20)
+val HandyPinkBubble = Color(0xFFFF9CE3)
+val HandyCartoonOutline = Color(0xFF2B1E23)
 
 class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
 
@@ -97,13 +98,13 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var audioJob: Job? = null
+    private var focusWatcherJob: Job? = null
     private var speechRecognizer: SpeechRecognizer? = null
 
     private var isRecordingState by mutableStateOf(false)
     private var isProcessingState by mutableStateOf(false)
     private var isMinimizedBubble by mutableStateOf(true)
     private var liveTranscriptState by mutableStateOf("")
-    private var warningBannerState by mutableStateOf<String?>(null)
 
     private val waveAmplitudes = mutableStateListOf(
         0.15f, 0.18f, 0.35f, 0.55f, 0.85f, 1.0f, 0.85f, 0.55f, 0.35f, 0.18f, 0.15f
@@ -125,6 +126,19 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
 
         startForegroundNotification()
         showFloatingOverlay()
+
+        // Surveillance périodique toutes les 450ms pour vérifier si une zone de saisie de texte est active
+        focusWatcherJob = serviceScope.launch {
+            while (isActive) {
+                val focused = HandyTextInjectorService.instance?.refreshEditableFocusState() ?: false
+                if (!focused && isRecordingState) {
+                    // Dès qu'on sort d'une zone de saisie de texte, on coupe immédiatement l'enregistrement
+                    cancelVoiceCapture()
+                    isMinimizedBubble = true
+                }
+                delay(450)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -134,48 +148,37 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                 return START_NOT_STICKY
             }
             "ACTION_SHOW_STANDBY_PILL" -> {
-                // Appelé automatiquement quand l'utilisateur clique dans un champ de chat
                 isMinimizedBubble = true
             }
             "ACTION_START_RECORDING" -> {
-                tryStartDictationOnlyIfEditableFocused()
+                tryStartDictationStrict()
             }
         }
         return START_STICKY
     }
 
-    /**
-     * RÈGLE STRICTE DEMANDÉE PAR L'UTILISATEUR :
-     * Le STT ne démarre QUE si l'on se trouve dans un endroit où l'on peut écrire (un chat, un message, un input).
-     */
-    private fun tryStartDictationOnlyIfEditableFocused() {
+    private fun tryStartDictationStrict() {
         val injector = HandyTextInjectorService.instance
         if (injector == null) {
             Toast.makeText(
                 applicationContext,
-                "⚠️ Activez d'abord le service d'Accessibilité Handy pour détecter les zones de texte !",
+                "Activez l'Accessibilité Handy pour détecter les zones de saisie de texte.",
                 Toast.LENGTH_LONG
             ).show()
             return
         }
 
-        val canWriteHere = injector.refreshEditableFocusState()
-        if (!canWriteHere) {
+        val isEditableField = injector.refreshEditableFocusState()
+        if (!isEditableField) {
             vibrateTick()
-            warningBannerState = "Cliquez d'abord dans une zone d'écriture (chat, message...)"
             Toast.makeText(
                 applicationContext,
-                "✏️ Cliquez d'abord dans une zone de texte (chat, message...) pour parler !",
+                "Touchez d'abord une zone de saisie de texte pour parler !",
                 Toast.LENGTH_SHORT
             ).show()
-            serviceScope.launch {
-                delay(2600)
-                warningBannerState = null
-            }
             return
         }
 
-        warningBannerState = null
         isMinimizedBubble = false
         startVoiceCapture()
     }
@@ -185,7 +188,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "Handy Direct Chat Dictation",
+                "Handy Direct Text Input STT",
                 NotificationManager.IMPORTANCE_LOW
             )
             val nm = getSystemService(NotificationManager::class.java)
@@ -194,14 +197,14 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
 
         val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, channelId)
-                .setContentTitle("Handy STT • Prêt pour vos chats")
-                .setContentText("Touchez un champ de texte puis appuyez sur la bulle pour dicter")
+                .setContentTitle("handy est prêt")
+                .setContentText("S'active uniquement dans les zones de saisie de texte")
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                 .build()
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
-                .setContentTitle("Handy STT • Prêt pour vos chats")
+                .setContentTitle("handy est prêt")
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                 .build()
         }
@@ -236,15 +239,16 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
 
             setContent {
                 val isFieldFocused by HandyTextInjectorService.hasEditableFieldFocused.collectAsState()
+                val hideWhenNoInput = remember { modelManager.isHideBubbleWhenNoInput() }
 
                 FloatingHandyOverlayContent(
                     isRecording = isRecordingState,
                     isProcessing = isProcessingState,
                     isMinimized = isMinimizedBubble,
                     isEditableFieldActive = isFieldFocused,
+                    hideWhenNoInput = hideWhenNoInput,
                     amplitudes = waveAmplitudes,
                     livePreview = liveTranscriptState,
-                    warningMessage = warningBannerState,
                     onDrag = { dx, dy ->
                         params.x += dx.toInt()
                         params.y += dy.toInt()
@@ -259,11 +263,11 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                     },
                     onConfirmClick = {
                         vibrateTick()
-                        finishAndWriteDirectlyToChat()
+                        finishAndWriteDirectlyToField()
                     },
                     onExpandBubble = {
                         vibrateTick()
-                        tryStartDictationOnlyIfEditableFocused()
+                        tryStartDictationStrict()
                     }
                 )
             }
@@ -340,21 +344,6 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                     val byteBuf = ByteArray(1024)
 
                     while (isActive && isRecordingState) {
-                        // Si l'utilisateur quitte le champ de texte pendant qu'il parle, on arrête automatiquement
-                        val stillEditable = HandyTextInjectorService.instance?.refreshEditableFocusState() ?: false
-                        if (!stillEditable) {
-                            withContext(Dispatchers.Main) {
-                                cancelVoiceCapture()
-                                isMinimizedBubble = true
-                                Toast.makeText(
-                                    applicationContext,
-                                    "Zone de texte quittée : dictée annulée.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                            break
-                        }
-
                         val read = recorder.read(shortBuf, 0, shortBuf.size)
                         if (read > 0) {
                             var sumSq = 0.0
@@ -405,11 +394,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
         }
     }
 
-    /**
-     * Valide la dictée et écrit DIRECTEMENT dans la zone de texte active,
-     * SANS JAMAIS copier dans le presse-papier !
-     */
-    private fun finishAndWriteDirectlyToChat() {
+    private fun finishAndWriteDirectlyToField() {
         isRecordingState = false
         isProcessingState = true
         audioJob?.cancel()
@@ -421,7 +406,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
         }
 
         serviceScope.launch {
-            delay(320)
+            delay(300)
             val durationMs = (System.currentTimeMillis() - recordingStartTime).coerceAtLeast(100L)
             val pcmBytes = recordedPcmStream.toByteArray()
             if (modelManager.isLowRamEcoMode()) {
@@ -436,17 +421,10 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
             val activeModel = modelManager.getActiveModelId()
             val finalTranscript = liveTranscriptState.trim()
 
-            if (finalTranscript.isBlank()) {
-                Toast.makeText(
-                    applicationContext,
-                    "Aucune parole détectée.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else {
+            if (finalTranscript.isNotBlank()) {
                 val injector = HandyTextInjectorService.instance
-                val targetPkg = HandyTextInjectorService.focusedAppPackage.value.ifBlank { "Chat" }
+                val targetPkg = HandyTextInjectorService.focusedAppPackage.value.ifBlank { "TextField" }
                 val written = injector?.injectTextDirectlyIntoActiveField(finalTranscript) ?: false
-
                 if (written) {
                     modelManager.addHistoryEntry(
                         text = finalTranscript,
@@ -454,12 +432,6 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                         modelUsed = activeModel,
                         durationMs = durationMs
                     )
-                } else {
-                    Toast.makeText(
-                        applicationContext,
-                        "⚠️ Impossible d'écrire : cliquez d'abord dans une zone de texte !",
-                        Toast.LENGTH_SHORT
-                    ).show()
                 }
             }
 
@@ -479,16 +451,17 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
         try {
             val vib = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vib.vibrate(VibrationEffect.createOneShot(22, VibrationEffect.DEFAULT_AMPLITUDE))
+                vib.vibrate(VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {
                 @Suppress("DEPRECATION")
-                vib.vibrate(22)
+                vib.vibrate(20)
             }
         } catch (_: Exception) {}
     }
 
     override fun onDestroy() {
         _isRunning.value = false
+        focusWatcherJob?.cancel()
         cancelVoiceCapture()
         serviceScope.cancel()
         composeView?.let {
@@ -510,14 +483,21 @@ fun FloatingHandyOverlayContent(
     isProcessing: Boolean,
     isMinimized: Boolean,
     isEditableFieldActive: Boolean,
+    hideWhenNoInput: Boolean,
     amplitudes: List<Float>,
     livePreview: String,
-    warningMessage: String?,
     onDrag: (Float, Float) -> Unit,
     onCancelClick: () -> Unit,
     onConfirmClick: () -> Unit,
     onExpandBubble: () -> Unit
 ) {
+    // RÈGLE STRICTE : Si aucune zone de saisie de texte n'est active et que l'option est activée,
+    // la bulle ne s'affiche même pas en dehors d'une zone de texte !
+    if (!isEditableFieldActive && hideWhenNoInput && isMinimized) {
+        Box(modifier = Modifier.size(0.dp))
+        return
+    }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -530,61 +510,33 @@ fun FloatingHandyOverlayContent(
             }
     ) {
         if (isMinimized) {
-            // Bulle compacte : Violet vif quand un champ d'écriture est actif, grisée sinon
-            val bubbleBg = if (isEditableFieldActive) CheckPurpleBg else Color(0xFF2B2638)
-            val borderCol = if (isEditableFieldActive) PillLavenderBg else Color(0xFF4A425C)
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            // Bulle inactive = TOUJOURS un Microphone (Icons.Default.Mic) avec style Handy Rose/Violet
+            Box(
                 modifier = Modifier
-                    .shadow(8.dp, RoundedCornerShape(28.dp))
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(bubbleBg)
-                    .border(1.5.dp, borderCol, RoundedCornerShape(28.dp))
-                    .clickable { onExpandBubble() }
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                    .size(54.dp)
+                    .shadow(6.dp, CircleShape)
+                    .clip(CircleShape)
+                    .background(if (isEditableFieldActive) HandyPinkBubble else PillLavenderBg)
+                    .border(2.5.dp, HandyCartoonOutline, CircleShape)
+                    .clickable { onExpandBubble() },
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isEditableFieldActive) Icons.Default.Mic else Icons.Default.EditNote,
-                    contentDescription = "Dictée",
-                    tint = if (isEditableFieldActive) PillLavenderBg else Color(0xFFA39BB5),
-                    modifier = Modifier.size(22.dp)
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = "Microphone Handy",
+                    tint = HandyCartoonOutline,
+                    modifier = Modifier.size(26.dp)
                 )
-                if (isEditableFieldActive) {
-                    Spacer(Modifier.width(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF4ADE80))
-                    )
-                }
-            }
-
-            warningMessage?.let { warn ->
-                Spacer(Modifier.height(6.dp))
-                Surface(
-                    color = Color(0xEE2B1620),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text(
-                        text = warn,
-                        color = Color(0xFFFFB4AB),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
-                }
             }
             return
         }
 
-        // Design exact de la photo : [ ( X ) ]   [ • • | | | | | • • ]   [ ( ✓ ) ]
+        // Barre active lors de la parole : [ ( X ) ]   [ • • | | | | | • • ]   [ ( ✓ ) ]
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Cercle Gauche Lavande (#F5EAFF) + Croix Noire
+            // Bouton Rond Gauche Lavande (#F5EAFF) + Croix Noire
             Box(
                 modifier = Modifier
                     .size(56.dp)
@@ -602,7 +554,7 @@ fun FloatingHandyOverlayContent(
                 )
             }
 
-            // Pilule Centrale Lavande (#F5EAFF) + 11 barres/points noirs animés
+            // Pilule Centrale Lavande (#F5EAFF) + Onde vocale noire à 11 éléments
             Box(
                 modifier = Modifier
                     .width(146.dp)
@@ -644,7 +596,7 @@ fun FloatingHandyOverlayContent(
                 }
             }
 
-            // Cercle Droit Violet Foncé (#67298A) + Coche Blanche
+            // Bouton Rond Droit Violet Foncé (#67298A) + Coche Blanche
             Box(
                 modifier = Modifier
                     .size(56.dp)
@@ -656,7 +608,7 @@ fun FloatingHandyOverlayContent(
             ) {
                 Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = "Écrire dans le chat",
+                    contentDescription = "Valider",
                     tint = Color.White,
                     modifier = Modifier.size(26.dp)
                 )
@@ -666,15 +618,16 @@ fun FloatingHandyOverlayContent(
         if (livePreview.isNotBlank()) {
             Spacer(Modifier.height(6.dp))
             Surface(
-                color = Color(0xEE181420),
+                color = Color(0xFFFDFBF0),
                 shape = RoundedCornerShape(12.dp),
-                shadowElevation = 4.dp
+                shadowElevation = 4.dp,
+                modifier = Modifier.border(2.dp, HandyCartoonOutline, RoundedCornerShape(12.dp))
             ) {
                 Text(
                     text = livePreview,
-                    color = PillLavenderBg,
+                    color = HandyCartoonOutline,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
