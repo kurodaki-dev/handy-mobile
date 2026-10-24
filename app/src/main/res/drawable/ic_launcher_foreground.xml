@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <group
+        android:scaleX="0.65"
+        android:scaleY="0.65"
+        android:translateX="89"
+        android:translateY="89">
+        <!-- Pilule Handy Lavande -->
+        <path
+            android:fillColor="#F5EAFF"
+            android:pathData="M96,176 L416,176 A80,80 0 0,1 496,256 A80,80 0 0,1 416,336 L96,336 A80,80 0 0,1 16,256 A80,80 0 0,1 96,176 Z" />
+        <!-- Barres d'onde sonore noires comme sur la photo -->
+        <path
+            android:strokeColor="#1D1B20"
+            android:strokeWidth="22"
+            android:strokeLineCap="round"
+            android:pathData="M136,256 L136,258 M184,242 L184,270 M232,222 L232,290 M280,222 L280,290 M328,242 L328,270 M376,256 L376,258" />
+    </group>
+</vector>
