@@ -68,29 +68,13 @@ jobs:
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: Handy Mobile v1.0.${{ github.run_number }}
-          body: "Handy Mobile Build #${{ github.run_number }} (Strict Focus/Keyboard Detection + Real Voice Equalizer + Unified Lavender Pill)."
+          body: "Handy Mobile Build #${{ github.run_number }}."
           files: app/build/outputs/apk/debug/HandyMobile-natlep.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  deploy-pages:
-    needs: build-apk
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Deploy GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: 'docs'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs

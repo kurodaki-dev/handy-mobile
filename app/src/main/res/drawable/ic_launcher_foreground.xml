@@ -26,10 +26,10 @@
             android:fillColor="#2B1E23"
             android:pathData="M234,274 A15,21 0 1,1 218,258 L224,274 Z" />
         <path
-            android:fillColor="#2B1E23"
+            android:fillColor="#2B2D30"
             android:pathData="M284,274 A15,21 0 1,1 268,258 L274,274 Z" />
         <path
-            android:fillColor="#2B1E23"
+            android:fillColor="#2B2D30"
             android:pathData="M222,316 Q252,324 282,314 Q278,352 252,352 Q226,352 222,316 Z" />
         <path
             android:fillColor="#FF9CE3"

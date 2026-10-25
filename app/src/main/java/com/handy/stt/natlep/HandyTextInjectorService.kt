@@ -11,13 +11,6 @@ import android.view.accessibility.AccessibilityWindowInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-/**
- * Service d'Accessibilité corrigé (v4) :
- * 1. Respecte strictement le bouton d'arrêt de l'application (`user_master_enabled`).
- *    Si l'utilisateur a désactivé la bulle dans l'app, elle NE SE RÉACTIVE JAMAIS toute seule !
- * 2. Détecte la fermeture du clavier (`TYPE_INPUT_METHOD`) et la perte de focus pour faire
- *    disparaître immédiatement la bulle dès qu'on quitte une zone de texte.
- */
 class HandyTextInjectorService : AccessibilityService() {
 
     companion object {
@@ -43,8 +36,6 @@ class HandyTextInjectorService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val isEditable = refreshEditableFocusState()
         val prefs = getSharedPreferences("handy_stt_prefs", MODE_PRIVATE)
-
-        // Verrou maître : si l'utilisateur a désactivé la bulle dans l'application, on ne la relance JAMAIS !
         val masterEnabled = prefs.getBoolean("user_master_enabled", false)
         if (!masterEnabled) return
 
@@ -71,10 +62,6 @@ class HandyTextInjectorService : AccessibilityService() {
         }
     }
 
-    /**
-     * Vérifie strictement si un champ de saisie de texte est actif ET visible à l'écran.
-     * Si le clavier est refermé ou que le champ n'est plus visible, renvoie false immédiatement !
-     */
     fun refreshEditableFocusState(): Boolean {
         return try {
             val winList = windows
@@ -102,19 +89,10 @@ class HandyTextInjectorService : AccessibilityService() {
                 }
             }
 
-            // Si un champ est focusé ET (soit le clavier est ouvert, soit le champ vient d'être cliqué)
-            val isTrulyActive = if (winList != null && winList.isNotEmpty()) {
-                editableNode != null && (imeVisible || editableNode.isFocused)
-            } else {
-                editableNode != null && editableNode.isFocused
-            }
-
-            // Si les fenêtres interactives sont accessibles et que le clavier est fermé hors de notre app de test,
-            // on considère qu'on a quitté la saisie
             val finalActive = if (winList != null && winList.isNotEmpty()) {
                 editableNode != null && imeVisible
             } else {
-                isTrulyActive
+                editableNode != null && editableNode.isFocused
             }
 
             _hasEditableFieldFocused.value = finalActive

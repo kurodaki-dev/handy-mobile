@@ -39,7 +39,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -69,6 +68,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.cos
 import kotlin.math.sin
+
+val PillLavenderBg = Color(0xFFF5EAFF)
+val CheckPurpleBg = Color(0xFF67298A)
+val WaveDarkInk = Color(0xFF1D1B20)
+val HandyInkOutline = Color(0xFF2B1E23)
+val HandyPink = Color(0xFFFF9CE3)
 
 class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
 
@@ -172,22 +177,14 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
     private fun tryStartDictationStrict() {
         val injector = HandyTextInjectorService.instance
         if (injector == null) {
-            Toast.makeText(
-                applicationContext,
-                "Activez d'abord l'Accessibilité Handy dans l'application !",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(applicationContext, "Activez d'abord l'Accessibilité Handy !", Toast.LENGTH_LONG).show()
             return
         }
 
         val isEditableField = injector.refreshEditableFocusState()
         if (!isEditableField) {
             vibrateTick()
-            Toast.makeText(
-                applicationContext,
-                "Touchez d'abord une zone de saisie de texte (clavier ouvert) !",
-                Toast.LENGTH_SHORT
-            ).show()
+            Toast.makeText(applicationContext, "Touchez d'abord une zone de saisie de texte !", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -198,11 +195,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
     private fun startForegroundNotification() {
         val channelId = "handy_floating_stt_channel"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "Handy Direct Text Input STT",
-                NotificationManager.IMPORTANCE_LOW
-            )
+            val channel = NotificationChannel(channelId, "Handy STT", NotificationManager.IMPORTANCE_LOW)
             val nm = getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(channel)
         }
@@ -210,7 +203,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
         val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, channelId)
                 .setContentTitle("handy actif")
-                .setContentText("Apparaît uniquement dans vos zones de texte")
+                .setContentText("Actif dans les zones de texte")
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                 .build()
         } else {
@@ -236,8 +229,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             layoutType,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -253,9 +245,9 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                 MaterialTheme(
                     colorScheme = lightColorScheme(
                         primary = HandyPink,
-                        secondary = HandyDeepPurple,
-                        background = HandyCreamBg,
-                        surface = HandyCardWhite,
+                        secondary = CheckPurpleBg,
+                        background = Color(0xFFFFFDF0),
+                        surface = Color(0xFFFFFFFF),
                         onSurface = HandyInkOutline
                     )
                 ) {
@@ -273,9 +265,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                         onDrag = { dx, dy ->
                             params.x += dx.toInt()
                             params.y += dy.toInt()
-                            try {
-                                windowManager.updateViewLayout(this, params)
-                            } catch (_: Exception) {}
+                            try { windowManager.updateViewLayout(this, params) } catch (_: Exception) {}
                         },
                         onCancelClick = {
                             vibrateTick()
@@ -334,9 +324,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                     speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
                         setRecognitionListener(object : RecognitionListener {
                             override fun onReadyForSpeech(params: Bundle?) {}
-                            override fun onBeginningOfSpeech() {
-                                currentVoiceEnergy = 0.45f
-                            }
+                            override fun onBeginningOfSpeech() { currentVoiceEnergy = 0.45f }
                             override fun onRmsChanged(rmsdB: Float) {
                                 val normalized = ((rmsdB - 1.2f) / 8.5f).coerceIn(0f, 1f)
                                 if (normalized > currentVoiceEnergy) {
@@ -346,17 +334,11 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                                 }
                             }
                             override fun onBufferReceived(buffer: ByteArray?) {}
-                            override fun onEndOfSpeech() {
-                                currentVoiceEnergy = 0f
-                            }
-                            override fun onError(error: Int) {
-                                currentVoiceEnergy = 0f
-                            }
+                            override fun onEndOfSpeech() { currentVoiceEnergy = 0f }
+                            override fun onError(error: Int) { currentVoiceEnergy = 0f }
                             override fun onResults(results: Bundle?) {
                                 val list = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                                if (!list.isNullOrEmpty()) {
-                                    liveTranscriptState = list[0]
-                                }
+                                if (!list.isNullOrEmpty()) { liveTranscriptState = list[0] }
                             }
                             override fun onPartialResults(partialResults: Bundle?) {
                                 val list = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
@@ -400,9 +382,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
         equalizerDecayJob?.cancel()
 
         Handler(Looper.getMainLooper()).post {
-            try {
-                speechRecognizer?.stopListening()
-            } catch (_: Exception) {}
+            try { speechRecognizer?.stopListening() } catch (_: Exception) {}
         }
 
         serviceScope.launch {
@@ -416,12 +396,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                 val targetPkg = HandyTextInjectorService.focusedAppPackage.value.ifBlank { "TextField" }
                 val written = injector?.injectTextDirectlyIntoActiveField(finalTranscript) ?: false
                 if (written) {
-                    modelManager.addHistoryEntry(
-                        text = finalTranscript,
-                        targetApp = targetPkg,
-                        modelUsed = activeModel,
-                        durationMs = durationMs
-                    )
+                    modelManager.addHistoryEntry(finalTranscript, targetPkg, activeModel, durationMs)
                 }
             }
 
@@ -455,11 +430,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
         equalizerDecayJob?.cancel()
         cancelVoiceCapture()
         serviceScope.cancel()
-        composeView?.let {
-            try {
-                windowManager.removeView(it)
-            } catch (_: Exception) {}
-        }
+        composeView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         store.clear()
         super.onDestroy()
@@ -487,9 +458,8 @@ fun FloatingHandyOverlayContent(
         return
     }
 
-    // Récupération dynamique des couleurs basées sur le thème de l'application
-    val themePink = MaterialTheme.colorScheme.primary       // #FF9CE3 (HandyPink)
-    val themePurple = MaterialTheme.colorScheme.secondary   // #67298A (CheckPurpleBg)
+    val themePink = MaterialTheme.colorScheme.primary
+    val themePurple = MaterialTheme.colorScheme.secondary
     val inkOutline = HandyInkOutline
 
     Column(
@@ -528,7 +498,6 @@ fun FloatingHandyOverlayContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 1. Cercle Gauche basé sur le thème + Contour cartoon
             Box(
                 modifier = Modifier
                     .size(56.dp)
@@ -547,7 +516,6 @@ fun FloatingHandyOverlayContent(
                 )
             }
 
-            // 2. Pilule Centrale basée sur le thème + Contour cartoon + Égaliseur synchronisé
             Box(
                 modifier = Modifier
                     .width(148.dp)
@@ -593,7 +561,6 @@ fun FloatingHandyOverlayContent(
                 }
             }
 
-            // 3. Cercle Droit Violet basé sur le thème + Contour cartoon
             Box(
                 modifier = Modifier
                     .size(56.dp)

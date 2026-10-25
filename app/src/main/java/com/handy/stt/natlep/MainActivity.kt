@@ -71,7 +71,10 @@ class MainActivity : ComponentActivity() {
                     secondary = CheckPurpleBg,
                     background = HandyCreamBg,
                     surface = HandyCardWhite,
-                    onSurface = HandyInkOutline
+                    onSurface = HandyInkOutline,
+                    // Harmonisation de la couleur de fond des boîtes de dialogue / popups
+                    surfaceContainerHigh = HandyCardWhite,
+                    surfaceVariant = HandySoftCreamCard
                 )
             ) {
                 HandyCartoonApp(
@@ -344,7 +347,6 @@ fun HandyCartoonApp(
                                 .padding(18.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // Aperçu unifié : Même couleur Lavande (#F5EAFF) pour la bulle Micro et la pilule d'onde !
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
