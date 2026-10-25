@@ -13,8 +13,8 @@ android {
         applicationId = "com.handy.stt.natlep"
         minSdk = 24
         targetSdk = 34
-        versionCode = 600 + runNum
-        versionName = "6.0.$runNum"
+        versionCode = 700 + runNum
+        versionName = "7.0.$runNum"
 
         vectorDrawables {
             useSupportLibrary = true

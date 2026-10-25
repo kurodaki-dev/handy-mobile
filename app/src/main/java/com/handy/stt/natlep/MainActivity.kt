@@ -49,15 +49,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-val HandyCreamBg = Color(0xFFFFFDF0)
-val HandyCardWhite = Color(0xFFFFFFFF)
-val HandySoftCreamCard = Color(0xFFF7F3DF)
-val HandyPink = Color(0xFFFF9CE3)
-val HandyDeepPink = Color(0xFFE86BC5)
-val HandyInkOutline = Color(0xFF2B1E23)
-val HandyMutedBrown = Color(0xFF6E5D63)
-val HandyMintOk = Color(0xFF2ECC71)
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

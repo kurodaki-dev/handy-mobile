@@ -69,12 +69,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.cos
 import kotlin.math.sin
 
-val PillLavenderBg = Color(0xFFF5EAFF)
-val CheckPurpleBg = Color(0xFF67298A)
-val WaveDarkInk = Color(0xFF1D1B20)
-val HandyInkOutline = Color(0xFF2B1E23)
-val HandyPink = Color(0xFFFF9CE3)
-
 class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
 
     companion object {
@@ -246,8 +240,8 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                     colorScheme = lightColorScheme(
                         primary = HandyPink,
                         secondary = CheckPurpleBg,
-                        background = Color(0xFFFFFDF0),
-                        surface = Color(0xFFFFFFFF),
+                        background = HandyCreamBg,
+                        surface = HandyCardWhite,
                         onSurface = HandyInkOutline
                     )
                 ) {
