@@ -207,7 +207,7 @@ class WhisperModelManager(private val context: Context) {
                     instanceFollowRedirects = true
                     connectTimeout = 15000
                     readTimeout = 20000
-                    setRequestProperty("User-Agent", "HandyMobile/5.0")
+                    setRequestProperty("User-Agent", "HandyMobile/6.0")
                 }
                 val code = conn.responseCode
                 if (code in 301..308 && redirects < 6) {

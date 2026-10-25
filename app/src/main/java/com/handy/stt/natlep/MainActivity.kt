@@ -71,10 +71,7 @@ class MainActivity : ComponentActivity() {
                     secondary = CheckPurpleBg,
                     background = HandyCreamBg,
                     surface = HandyCardWhite,
-                    onSurface = HandyInkOutline,
-                    // Harmonisation de la couleur de fond des boîtes de dialogue / popups
-                    surfaceContainerHigh = HandyCardWhite,
-                    surfaceVariant = HandySoftCreamCard
+                    onSurface = HandyInkOutline
                 )
             ) {
                 HandyCartoonApp(
