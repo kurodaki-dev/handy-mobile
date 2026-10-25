@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>handy mobile — Direct Voice-to-Text for Android</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream: #FFFDF0;
+      --pink: #FF9CE3;
+      --lavender: #F5EAFF;
+      --purple: #67298A;
+      --ink: #2B1E23;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    body {
+      background-color: var(--cream);
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 36px 18px;
+    }
+    .card {
+      max-width: 620px;
+      width: 100%;
+      background: #FFFFFF;
+      border: 3.5px solid var(--ink);
+      border-radius: 30px;
+      padding: 40px 28px;
+      box-shadow: 0 10px 0 var(--ink);
+      text-align: center;
+    }
+    .logo-title {
+      font-family: 'Fredoka', cursive, sans-serif;
+      font-size: 4.4rem;
+      font-weight: 700;
+      color: var(--pink);
+      letter-spacing: 1px;
+      line-height: 1.05;
+      margin-bottom: 10px;
+      paint-order: stroke fill;
+      -webkit-text-stroke: 8px var(--ink);
+      text-shadow:
+        -3px -3px 0 var(--ink),
+         3px -3px 0 var(--ink),
+        -3px  3px 0 var(--ink),
+         3px  3px 0 var(--ink),
+         0px  6px 0 var(--ink);
+    }
+    .subtitle {
+      font-size: 1.05rem;
+      color: #5E4F55;
+      font-weight: 600;
+      margin-bottom: 26px;
+      line-height: 1.45;
+    }
+    .pill-preview {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin: 6px 0 30px;
+      padding: 10px 16px;
+      background: var(--cream);
+      border: 2.5px solid var(--ink);
+      border-radius: 999px;
+    }
+    .circle-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.35rem;
+      font-weight: 800;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.10);
+    }
+    .circle-cancel { background: var(--lavender); color: var(--ink); }
+    .circle-ok { background: var(--purple); color: #FFF; }
+    .center-pill {
+      width: 148px;
+      height: 52px;
+      background: var(--lavender);
+      border-radius: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.10);
+    }
+    .bar {
+      width: 4.5px;
+      background: var(--ink);
+      border-radius: 99px;
+      animation: wave 1s infinite ease-in-out;
+    }
+    .bar:nth-child(1), .bar:nth-child(11) { height: 5px; animation-delay: 0.1s; }
+    .bar:nth-child(2), .bar:nth-child(10) { height: 8px; animation-delay: 0.2s; }
+    .bar:nth-child(3), .bar:nth-child(9)  { height: 13px; animation-delay: 0.3s; }
+    .bar:nth-child(4), .bar:nth-child(8)  { height: 18px; animation-delay: 0.4s; }
+    .bar:nth-child(5), .bar:nth-child(7)  { height: 22px; animation-delay: 0.5s; }
+    .bar:nth-child(6)                     { height: 25px; animation-delay: 0.6s; }
+    @keyframes wave {
+      0%, 100% { transform: scaleY(0.45); }
+      50% { transform: scaleY(1.18); }
+    }
+    .download-btn {
+      display: inline-block;
+      background: var(--pink);
+      color: var(--ink);
+      border: 3px solid var(--ink);
+      border-radius: 18px;
+      padding: 16px 34px;
+      font-size: 1.12rem;
+      font-weight: 800;
+      text-decoration: none;
+      box-shadow: 0 6px 0 var(--ink);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .download-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 var(--ink);
+    }
+    .version-tag {
+      margin-top: 14px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--purple);
+    }
+    .features {
+      margin-top: 30px;
+      text-align: left;
+      display: grid;
+      gap: 12px;
+    }
+    .feat-item {
+      background: var(--cream);
+      border: 2.5px solid var(--ink);
+      border-radius: 16px;
+      padding: 14px 16px;
+      font-size: 0.94rem;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-title">handy</div>
+    <p class="subtitle">Floating Speech-to-Text for Android powered by quantized Whisper models</p>
+
+    <div class="pill-preview">
+      <div class="circle-btn circle-cancel">✕</div>
+      <div class="center-pill">
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div>
+      </div>
+      <div class="circle-btn circle-ok">✓</div>
+    </div>
+
+    <div>
+      <a id="dl-link" class="download-btn" href="https://github.com/kurodaki-dev/handy-mobile/releases/latest/download/HandyMobile-natlep.apk">
+        ⬇ Download Android APK
+      </a>
+      <div id="ver-text" class="version-tag">Fetching latest release...</div>
+    </div>
+
+    <div class="features">
+      <div class="feat-item">🎯 <b>Strict Text-Field Detection:</b> The floating mic bubble only appears when your keyboard is active inside a text input box and automatically disappears when you leave it.</div>
+      <div class="feat-item">🎙️ <b>Real-Time Voice Equalizer:</b> All 11 equalizer bars react smoothly in real time to your voice volume and syllables.</div>
+      <div class="feat-item">🧠 <b>Low-RAM Quantized Whisper Models:</b> Includes Tiny, Base, Small, Medium, and Large v3 Turbo optimized for lightweight devices.</div>
+    </div>
+  </div>
+
+  <script>
+    fetch("https://api.github.com/repos/kurodaki-dev/handy-mobile/releases/latest")
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.tag_name) {
+          document.getElementById("ver-text").textContent = "Latest Release: " + data.tag_name;
+          if (data.assets && data.assets.length > 0) {
+            document.getElementById("dl-link").href = data.assets[0].browser_download_url;
+          }
+        }
+      })
+      .catch(() => {
+        document.getElementById("ver-text").textContent = "Latest APK available on GitHub Releases";
+      });
+  </script>
+</body>
+</html>
