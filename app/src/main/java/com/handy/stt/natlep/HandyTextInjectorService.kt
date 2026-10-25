@@ -7,14 +7,16 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Service d'Accessibilité strict :
- * - Vérifie en permanence si l'utilisateur est dans une zone de saisie de texte (EditText / Chat).
- * - N'autorise la bulle et la dictée QUE lorsqu'une zone de saisie de texte est active.
- * - Écrit directement le texte dans la zone de saisie sans jamais copier dans le presse-papier.
+ * Service d'Accessibilité corrigé (v4) :
+ * 1. Respecte strictement le bouton d'arrêt de l'application (`user_master_enabled`).
+ *    Si l'utilisateur a désactivé la bulle dans l'app, elle NE SE RÉACTIVE JAMAIS toute seule !
+ * 2. Détecte la fermeture du clavier (`TYPE_INPUT_METHOD`) et la perte de focus pour faire
+ *    disparaître immédiatement la bulle dès qu'on quitte une zone de texte.
  */
 class HandyTextInjectorService : AccessibilityService() {
 
@@ -39,23 +41,21 @@ class HandyTextInjectorService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
-        when (event.eventType) {
-            AccessibilityEvent.TYPE_VIEW_FOCUSED,
-            AccessibilityEvent.TYPE_VIEW_CLICKED,
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
-                val isEditable = refreshEditableFocusState()
-                if (isEditable && Settings.canDrawOverlays(this) && !FloatingSttService.isRunning.value) {
-                    val intent = Intent(this, FloatingSttService::class.java).apply {
-                        action = "ACTION_SHOW_STANDBY_PILL"
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(intent)
-                    } else {
-                        startService(intent)
-                    }
-                }
+        val isEditable = refreshEditableFocusState()
+        val prefs = getSharedPreferences("handy_stt_prefs", MODE_PRIVATE)
+
+        // Verrou maître : si l'utilisateur a désactivé la bulle dans l'application, on ne la relance JAMAIS !
+        val masterEnabled = prefs.getBoolean("user_master_enabled", false)
+        if (!masterEnabled) return
+
+        if (isEditable && Settings.canDrawOverlays(this) && !FloatingSttService.isRunning.value) {
+            val intent = Intent(this, FloatingSttService::class.java).apply {
+                action = "ACTION_SHOW_STANDBY_PILL"
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
             }
         }
     }
@@ -71,33 +71,58 @@ class HandyTextInjectorService : AccessibilityService() {
         }
     }
 
+    /**
+     * Vérifie strictement si un champ de saisie de texte est actif ET visible à l'écran.
+     * Si le clavier est refermé ou que le champ n'est plus visible, renvoie false immédiatement !
+     */
     fun refreshEditableFocusState(): Boolean {
         return try {
-            val activeRoot = rootInActiveWindow
-            val inputNode = activeRoot?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-                ?: findFocusedEditableNodeRecursive(activeRoot)
+            val winList = windows
+            var imeVisible = false
+            var editableNode: AccessibilityNodeInfo? = null
 
-            if (inputNode != null && inputNode.isEditable) {
-                _hasEditableFieldFocused.value = true
-                _focusedAppPackage.value = inputNode.packageName?.toString() ?: ""
-                true
-            } else {
-                var foundInWindows = false
-                for (win in windows) {
-                    val r = win.root ?: continue
-                    val n = r.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: findFocusedEditableNodeRecursive(r)
-                    if (n != null && n.isEditable) {
-                        foundInWindows = true
-                        _focusedAppPackage.value = n.packageName?.toString() ?: ""
-                        break
+            if (winList != null && winList.isNotEmpty()) {
+                for (w in winList) {
+                    if (w.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+                        imeVisible = true
+                    }
+                    val r = w.root ?: continue
+                    val focused = r.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                    if (focused != null && focused.isEditable && focused.isVisibleToUser) {
+                        editableNode = focused
                     }
                 }
-                _hasEditableFieldFocused.value = foundInWindows
-                if (!foundInWindows) _focusedAppPackage.value = ""
-                foundInWindows
             }
+
+            if (editableNode == null) {
+                val activeRoot = rootInActiveWindow
+                val focused = activeRoot?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                if (focused != null && focused.isEditable && focused.isVisibleToUser) {
+                    editableNode = focused
+                }
+            }
+
+            // Si un champ est focusé ET (soit le clavier est ouvert, soit le champ vient d'être cliqué)
+            val isTrulyActive = if (winList != null && winList.isNotEmpty()) {
+                editableNode != null && (imeVisible || editableNode.isFocused)
+            } else {
+                editableNode != null && editableNode.isFocused
+            }
+
+            // Si les fenêtres interactives sont accessibles et que le clavier est fermé hors de notre app de test,
+            // on considère qu'on a quitté la saisie
+            val finalActive = if (winList != null && winList.isNotEmpty()) {
+                editableNode != null && imeVisible
+            } else {
+                isTrulyActive
+            }
+
+            _hasEditableFieldFocused.value = finalActive
+            _focusedAppPackage.value = if (finalActive) (editableNode?.packageName?.toString() ?: "") else ""
+            finalActive
         } catch (_: Exception) {
             _hasEditableFieldFocused.value = false
+            _focusedAppPackage.value = ""
             false
         }
     }
@@ -150,26 +175,12 @@ class HandyTextInjectorService : AccessibilityService() {
             val direct = root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             if (direct != null && direct.isEditable) return direct
 
-            val rec = findFocusedEditableNodeRecursive(root)
-            if (rec != null) return rec
-
             for (win in windows) {
                 val r = win.root ?: continue
-                val n = r.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: findFocusedEditableNodeRecursive(r)
+                val n = r.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
                 if (n != null && n.isEditable) return n
             }
         } catch (_: Exception) {}
-        return null
-    }
-
-    private fun findFocusedEditableNodeRecursive(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-        if (node == null) return null
-        if (node.isEditable && node.isFocused) return node
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            val found = findFocusedEditableNodeRecursive(child)
-            if (found != null) return found
-        }
         return null
     }
 }

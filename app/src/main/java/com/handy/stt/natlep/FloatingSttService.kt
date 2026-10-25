@@ -6,9 +6,6 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
-import android.media.AudioFormat
-import android.media.AudioRecord
-import android.media.MediaRecorder
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -20,12 +17,13 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -65,16 +63,13 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import java.io.ByteArrayOutputStream
-import java.io.File
-import kotlin.math.sqrt
+import kotlin.math.cos
+import kotlin.math.sin
 
-// Couleurs de la pilule vocale
+// Couleurs exactes et unifiées de la photo (Même couleur Lavande #F5EAFF et Violet #67298A partout)
 val PillLavenderBg = Color(0xFFF5EAFF)
 val CheckPurpleBg = Color(0xFF67298A)
 val WaveDarkInk = Color(0xFF1D1B20)
-val HandyPinkBubble = Color(0xFFFF9CE3)
-val HandyCartoonOutline = Color(0xFF2B1E23)
 
 class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
 
@@ -97,8 +92,8 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
     private lateinit var modelManager: WhisperModelManager
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private var audioJob: Job? = null
     private var focusWatcherJob: Job? = null
+    private var equalizerDecayJob: Job? = null
     private var speechRecognizer: SpeechRecognizer? = null
 
     private var isRecordingState by mutableStateOf(false)
@@ -106,11 +101,11 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
     private var isMinimizedBubble by mutableStateOf(true)
     private var liveTranscriptState by mutableStateOf("")
 
+    // Les 11 barres de l'égaliseur (au silence = petits points de 0.08f comme sur la photo)
     private val waveAmplitudes = mutableStateListOf(
-        0.15f, 0.18f, 0.35f, 0.55f, 0.85f, 1.0f, 0.85f, 0.55f, 0.35f, 0.18f, 0.15f
+        0.08f, 0.08f, 0.08f, 0.08f, 0.08f, 0.08f, 0.08f, 0.08f, 0.08f, 0.08f, 0.08f
     )
-
-    private val recordedPcmStream = ByteArrayOutputStream()
+    private var currentVoiceEnergy by mutableFloatStateOf(0f)
     private var recordingStartTime = 0L
 
     override fun onCreate() {
@@ -127,16 +122,33 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
         startForegroundNotification()
         showFloatingOverlay()
 
-        // Surveillance périodique toutes les 450ms pour vérifier si une zone de saisie de texte est active
+        // Surveillance rapide (toutes les 200ms) :
+        // 1. Si l'utilisateur a désactivé la bulle dans l'app -> on arrête tout immédiatement
+        // 2. Si on quitte une zone de texte (clavier refermé / plus de focus) -> on masque la vue WindowManager (View.GONE) !
         focusWatcherJob = serviceScope.launch {
             while (isActive) {
-                val focused = HandyTextInjectorService.instance?.refreshEditableFocusState() ?: false
-                if (!focused && isRecordingState) {
-                    // Dès qu'on sort d'une zone de saisie de texte, on coupe immédiatement l'enregistrement
-                    cancelVoiceCapture()
-                    isMinimizedBubble = true
+                if (!modelManager.isUserMasterEnabled()) {
+                    stopSelf()
+                    break
                 }
-                delay(450)
+
+                val focused = HandyTextInjectorService.instance?.refreshEditableFocusState() ?: false
+                val hideOutside = modelManager.isHideBubbleWhenNoInput()
+
+                if (!focused) {
+                    if (isRecordingState) {
+                        cancelVoiceCapture()
+                        isMinimizedBubble = true
+                    }
+                    if (hideOutside) {
+                        composeView?.visibility = View.GONE
+                    } else {
+                        composeView?.visibility = View.VISIBLE
+                    }
+                } else {
+                    composeView?.visibility = View.VISIBLE
+                }
+                delay(200)
             }
         }
     }
@@ -144,10 +156,15 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             "ACTION_STOP_SERVICE" -> {
+                modelManager.setUserMasterEnabled(false)
                 stopSelf()
                 return START_NOT_STICKY
             }
             "ACTION_SHOW_STANDBY_PILL" -> {
+                if (!modelManager.isUserMasterEnabled()) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
                 isMinimizedBubble = true
             }
             "ACTION_START_RECORDING" -> {
@@ -162,7 +179,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
         if (injector == null) {
             Toast.makeText(
                 applicationContext,
-                "Activez l'Accessibilité Handy pour détecter les zones de saisie de texte.",
+                "Activez d'abord l'Accessibilité Handy dans l'application !",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -173,14 +190,14 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
             vibrateTick()
             Toast.makeText(
                 applicationContext,
-                "Touchez d'abord une zone de saisie de texte pour parler !",
+                "Touchez d'abord une zone de saisie de texte (clavier ouvert) !",
                 Toast.LENGTH_SHORT
             ).show()
             return
         }
 
         isMinimizedBubble = false
-        startVoiceCapture()
+        startVoiceCaptureSynced()
     }
 
     private fun startForegroundNotification() {
@@ -197,14 +214,14 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
 
         val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, channelId)
-                .setContentTitle("handy est prêt")
-                .setContentText("S'active uniquement dans les zones de saisie de texte")
+                .setContentTitle("handy actif")
+                .setContentText("Apparaît uniquement dans vos zones de texte")
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                 .build()
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
-                .setContentTitle("handy est prêt")
+                .setContentTitle("handy actif")
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                 .build()
         }
@@ -229,7 +246,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = 150
+            y = 140
         }
 
         val view = ComposeView(this).apply {
@@ -239,7 +256,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
 
             setContent {
                 val isFieldFocused by HandyTextInjectorService.hasEditableFieldFocused.collectAsState()
-                val hideWhenNoInput = remember { modelManager.isHideBubbleWhenNoInput() }
+                val hideWhenNoInput = modelManager.isHideBubbleWhenNoInput()
 
                 FloatingHandyOverlayContent(
                     isRecording = isRecordingState,
@@ -277,13 +294,43 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
         windowManager.addView(view, params)
     }
 
-    private fun startVoiceCapture() {
+    /**
+     * Capture vocale SANS conflit AudioRecord :
+     * On utilise un seul flux microphone et on synchronise directement les 11 barres de l'égaliseur
+     * sur les décibels réels de la voix (`onRmsChanged`) avec une boucle de lissage à 60 FPS !
+     */
+    private fun startVoiceCaptureSynced() {
         cancelVoiceCapture()
         isRecordingState = true
         isProcessingState = false
         liveTranscriptState = ""
-        recordedPcmStream.reset()
+        currentVoiceEnergy = 0f
         recordingStartTime = System.currentTimeMillis()
+
+        // Boucle d'animation 60 FPS qui fait monter et descendre les 11 barres en rythme exact avec currentVoiceEnergy
+        equalizerDecayJob = serviceScope.launch {
+            val profile = floatArrayOf(0.18f, 0.32f, 0.55f, 0.78f, 0.94f, 1.0f, 0.94f, 0.78f, 0.55f, 0.32f, 0.18f)
+            var phase = 0.0
+            while (isActive && isRecordingState) {
+                phase += 0.45
+                // Décroissance naturelle rapide quand tu fais une pause entre deux mots
+                currentVoiceEnergy = (currentVoiceEnergy * 0.82f).coerceAtLeast(0f)
+
+                for (i in 0 until 11) {
+                    if (currentVoiceEnergy < 0.05f) {
+                        // Silence = petits points bas comme sur la photo
+                        waveAmplitudes[i] = 0.08f
+                    } else {
+                        // Parole = modulation harmonique par bande de fréquence proportionnelle au volume de ta voix
+                        val harmonic = 0.75f + 0.25f * sin(phase + i * 0.65).toFloat() * cos(phase * 0.5 - i * 0.3).toFloat()
+                        val target = (currentVoiceEnergy * profile[i] * harmonic).coerceIn(0.08f, 1.0f)
+                        waveAmplitudes[i] = target
+                    }
+                }
+                delay(28)
+            }
+            for (i in 0 until 11) waveAmplitudes[i] = 0.08f
+        }
 
         Handler(Looper.getMainLooper()).post {
             try {
@@ -291,11 +338,25 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                     speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
                         setRecognitionListener(object : RecognitionListener {
                             override fun onReadyForSpeech(params: Bundle?) {}
-                            override fun onBeginningOfSpeech() {}
-                            override fun onRmsChanged(rmsdB: Float) {}
+                            override fun onBeginningOfSpeech() {
+                                currentVoiceEnergy = 0.45f
+                            }
+                            override fun onRmsChanged(rmsdB: Float) {
+                                // rmsdB varie typiquement entre -2 dB (silence) et +10 dB (voix forte)
+                                val normalized = ((rmsdB - 1.2f) / 8.5f).coerceIn(0f, 1f)
+                                if (normalized > currentVoiceEnergy) {
+                                    currentVoiceEnergy = normalized
+                                } else {
+                                    currentVoiceEnergy = currentVoiceEnergy * 0.6f + normalized * 0.4f
+                                }
+                            }
                             override fun onBufferReceived(buffer: ByteArray?) {}
-                            override fun onEndOfSpeech() {}
-                            override fun onError(error: Int) {}
+                            override fun onEndOfSpeech() {
+                                currentVoiceEnergy = 0f
+                            }
+                            override fun onError(error: Int) {
+                                currentVoiceEnergy = 0f
+                            }
                             override fun onResults(results: Bundle?) {
                                 val list = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                                 if (!list.isNullOrEmpty()) {
@@ -306,6 +367,8 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                                 val list = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                                 if (!list.isNullOrEmpty()) {
                                     liveTranscriptState = list[0]
+                                    // Boost visuel sur chaque syllabe détectée
+                                    if (currentVoiceEnergy < 0.55f) currentVoiceEnergy = 0.65f
                                 }
                             }
                             override fun onEvent(eventType: Int, params: Bundle?) {}
@@ -320,71 +383,13 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
                 }
             } catch (_: Exception) {}
         }
-
-        audioJob = serviceScope.launch(Dispatchers.IO) {
-            val sampleRate = 16000
-            val minBuf = AudioRecord.getMinBufferSize(
-                sampleRate,
-                AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT
-            ).coerceAtLeast(2048)
-
-            var recorder: AudioRecord? = null
-            try {
-                recorder = AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
-                    sampleRate,
-                    AudioFormat.CHANNEL_IN_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT,
-                    minBuf
-                )
-                if (recorder.state == AudioRecord.STATE_INITIALIZED) {
-                    recorder.startRecording()
-                    val shortBuf = ShortArray(512)
-                    val byteBuf = ByteArray(1024)
-
-                    while (isActive && isRecordingState) {
-                        val read = recorder.read(shortBuf, 0, shortBuf.size)
-                        if (read > 0) {
-                            var sumSq = 0.0
-                            for (i in 0 until read) {
-                                val sample = shortBuf[i].toInt()
-                                sumSq += sample * sample
-                                byteBuf[i * 2] = (sample and 0xFF).toByte()
-                                byteBuf[i * 2 + 1] = ((sample shr 8) and 0xFF).toByte()
-                            }
-                            recordedPcmStream.write(byteBuf, 0, read * 2)
-
-                            val rms = sqrt(sumSq / read) / 6500.0
-                            val level = rms.toFloat().coerceIn(0.12f, 1.0f)
-
-                            val envelope = floatArrayOf(0.16f, 0.25f, 0.50f, 0.75f, 0.95f, 1.0f, 0.95f, 0.75f, 0.50f, 0.25f, 0.16f)
-                            withContext(Dispatchers.Main) {
-                                for (idx in 0 until 11) {
-                                    val jitter = ((System.nanoTime() shr (idx + 2)) and 0x7) * 0.03f
-                                    waveAmplitudes[idx] = (level * envelope[idx] + jitter).coerceIn(0.14f, 1.0f)
-                                }
-                            }
-                        }
-                        delay(35)
-                    }
-                }
-            } catch (_: Exception) {
-            } finally {
-                try {
-                    recorder?.stop()
-                    recorder?.release()
-                } catch (_: Exception) {}
-            }
-        }
     }
 
     private fun cancelVoiceCapture() {
         isRecordingState = false
-        audioJob?.cancel()
-        if (modelManager.isLowRamEcoMode()) {
-            recordedPcmStream.reset()
-        }
+        currentVoiceEnergy = 0f
+        equalizerDecayJob?.cancel()
+        for (i in 0 until 11) waveAmplitudes[i] = 0.08f
         Handler(Looper.getMainLooper()).post {
             try {
                 speechRecognizer?.cancel()
@@ -397,7 +402,8 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
     private fun finishAndWriteDirectlyToField() {
         isRecordingState = false
         isProcessingState = true
-        audioJob?.cancel()
+        currentVoiceEnergy = 0f
+        equalizerDecayJob?.cancel()
 
         Handler(Looper.getMainLooper()).post {
             try {
@@ -406,18 +412,8 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
         }
 
         serviceScope.launch {
-            delay(300)
+            delay(280)
             val durationMs = (System.currentTimeMillis() - recordingStartTime).coerceAtLeast(100L)
-            val pcmBytes = recordedPcmStream.toByteArray()
-            if (modelManager.isLowRamEcoMode()) {
-                recordedPcmStream.reset()
-            } else if (pcmBytes.isNotEmpty()) {
-                val wavFile = File(modelManager.recordingsDir, "last_dictation.wav")
-                withContext(Dispatchers.IO) {
-                    modelManager.writeWavFile(pcmBytes, wavFile)
-                }
-            }
-
             val activeModel = modelManager.getActiveModelId()
             val finalTranscript = liveTranscriptState.trim()
 
@@ -462,6 +458,7 @@ class FloatingSttService : android.app.Service(), LifecycleOwner, ViewModelStore
     override fun onDestroy() {
         _isRunning.value = false
         focusWatcherJob?.cancel()
+        equalizerDecayJob?.cancel()
         cancelVoiceCapture()
         serviceScope.cancel()
         composeView?.let {
@@ -491,9 +488,8 @@ fun FloatingHandyOverlayContent(
     onConfirmClick: () -> Unit,
     onExpandBubble: () -> Unit
 ) {
-    // RÈGLE STRICTE : Si aucune zone de saisie de texte n'est active et que l'option est activée,
-    // la bulle ne s'affiche même pas en dehors d'une zone de texte !
-    if (!isEditableFieldActive && hideWhenNoInput && isMinimized) {
+    // Disparition totale dès qu'on quitte une zone de texte
+    if (!isEditableFieldActive && hideWhenNoInput) {
         Box(modifier = Modifier.size(0.dp))
         return
     }
@@ -510,33 +506,33 @@ fun FloatingHandyOverlayContent(
             }
     ) {
         if (isMinimized) {
-            // Bulle inactive = TOUJOURS un Microphone (Icons.Default.Mic) avec style Handy Rose/Violet
+            // Bulle réduite : EXACTEMENT la même couleur Lavande (#F5EAFF) et icône Micro Violet/Noir
+            // pour une continuité visuelle parfaite avec la barre d'enregistrement !
             Box(
                 modifier = Modifier
                     .size(54.dp)
                     .shadow(6.dp, CircleShape)
                     .clip(CircleShape)
-                    .background(if (isEditableFieldActive) HandyPinkBubble else PillLavenderBg)
-                    .border(2.5.dp, HandyCartoonOutline, CircleShape)
+                    .background(PillLavenderBg)
                     .clickable { onExpandBubble() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Mic,
                     contentDescription = "Microphone Handy",
-                    tint = HandyCartoonOutline,
+                    tint = CheckPurpleBg,
                     modifier = Modifier.size(26.dp)
                 )
             }
             return
         }
 
-        // Barre active lors de la parole : [ ( X ) ]   [ • • | | | | | • • ]   [ ( ✓ ) ]
+        // Barre d'enregistrement exacte de la photo : [ ( X ) ]   [ • • | | | | | • • ]   [ ( ✓ ) ]
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Bouton Rond Gauche Lavande (#F5EAFF) + Croix Noire
+            // 1. Cercle Gauche Lavande (#F5EAFF) + Croix Noire
             Box(
                 modifier = Modifier
                     .size(56.dp)
@@ -554,10 +550,10 @@ fun FloatingHandyOverlayContent(
                 )
             }
 
-            // Pilule Centrale Lavande (#F5EAFF) + Onde vocale noire à 11 éléments
+            // 2. Pilule Centrale Lavande (#F5EAFF) + Égaliseur 11 barres synchronisé sur la voix
             Box(
                 modifier = Modifier
-                    .width(146.dp)
+                    .width(148.dp)
                     .height(56.dp)
                     .shadow(6.dp, RoundedCornerShape(28.dp))
                     .clip(RoundedCornerShape(28.dp))
@@ -579,11 +575,14 @@ fun FloatingHandyOverlayContent(
                     ) {
                         amplitudes.forEachIndexed { index, rawAmp ->
                             val animAmp by animateFloatAsState(
-                                targetValue = if (isRecording) rawAmp else 0.15f,
-                                animationSpec = tween(durationMillis = 65),
-                                label = "bar_$index"
+                                targetValue = if (isRecording) rawAmp else 0.08f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessHigh
+                                ),
+                                label = "eq_$index"
                             )
-                            val barHeight = (5f + animAmp * 14f).dp
+                            val barHeight = (4.5f + animAmp * 20f).dp
                             Box(
                                 modifier = Modifier
                                     .width(4.5.dp)
@@ -596,7 +595,7 @@ fun FloatingHandyOverlayContent(
                 }
             }
 
-            // Bouton Rond Droit Violet Foncé (#67298A) + Coche Blanche
+            // 3. Cercle Droit Violet Foncé (#67298A) + Coche Blanche
             Box(
                 modifier = Modifier
                     .size(56.dp)
@@ -618,14 +617,13 @@ fun FloatingHandyOverlayContent(
         if (livePreview.isNotBlank()) {
             Spacer(Modifier.height(6.dp))
             Surface(
-                color = Color(0xFFFDFBF0),
+                color = PillLavenderBg,
                 shape = RoundedCornerShape(12.dp),
-                shadowElevation = 4.dp,
-                modifier = Modifier.border(2.dp, HandyCartoonOutline, RoundedCornerShape(12.dp))
+                shadowElevation = 4.dp
             ) {
                 Text(
                     text = livePreview,
-                    color = HandyCartoonOutline,
+                    color = WaveDarkInk,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,

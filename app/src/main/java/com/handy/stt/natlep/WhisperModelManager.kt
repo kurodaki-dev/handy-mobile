@@ -8,8 +8,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 data class WhisperModelSpec(
     val id: String,
@@ -38,7 +36,6 @@ class WhisperModelManager(private val context: Context) {
         context.getSharedPreferences("handy_stt_prefs", Context.MODE_PRIVATE)
 
     val modelsDir: File = File(context.filesDir, "whisper_models").apply { mkdirs() }
-    val recordingsDir: File = File(context.cacheDir, "recordings").apply { mkdirs() }
 
     val catalog: List<WhisperModelSpec> = listOf(
         WhisperModelSpec(
@@ -114,6 +111,12 @@ class WhisperModelManager(private val context: Context) {
             isLowRamRecommended = false
         )
     )
+
+    fun isUserMasterEnabled(): Boolean = prefs.getBoolean("user_master_enabled", false)
+
+    fun setUserMasterEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("user_master_enabled", enabled).apply()
+    }
 
     fun isModelDownloaded(modelId: String): Boolean {
         val file = File(modelsDir, "$modelId.bin")
@@ -204,7 +207,7 @@ class WhisperModelManager(private val context: Context) {
                     instanceFollowRedirects = true
                     connectTimeout = 15000
                     readTimeout = 20000
-                    setRequestProperty("User-Agent", "HandyMobile/3.0")
+                    setRequestProperty("User-Agent", "HandyMobile/4.0")
                 }
                 val code = conn.responseCode
                 if (code in 301..308 && redirects < 6) {
@@ -239,30 +242,6 @@ class WhisperModelManager(private val context: Context) {
         } catch (e: Exception) {
             tempFile.delete()
             false
-        }
-    }
-
-    fun writeWavFile(pcmData: ByteArray, outFile: File, sampleRate: Int = 16000) {
-        FileOutputStream(outFile).use { out ->
-            val totalDataLen = pcmData.size + 36
-            val byteRate = sampleRate * 2
-            val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN).apply {
-                put("RIFF".toByteArray(Charsets.US_ASCII))
-                putInt(totalDataLen)
-                put("WAVE".toByteArray(Charsets.US_ASCII))
-                put("fmt ".toByteArray(Charsets.US_ASCII))
-                putInt(16)
-                putShort(1)
-                putShort(1)
-                putInt(sampleRate)
-                putInt(byteRate)
-                putShort(2)
-                putShort(16)
-                put("data".toByteArray(Charsets.US_ASCII))
-                putInt(pcmData.size)
-            }
-            out.write(header.array())
-            out.write(pcmData)
         }
     }
 }

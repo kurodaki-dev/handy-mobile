@@ -1,4 +1,4 @@
-name: Build & Release Handy STT Mobile APK
+name: Build, Release APK & Deploy GitHub Pages
 
 on:
   push:
@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build-apk:
@@ -66,7 +68,29 @@ jobs:
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: Handy Mobile v1.0.${{ github.run_number }}
-          body: "Handy Mobile Build #${{ github.run_number }} (Official Handy Glove Mascot Theme + Mic Inactive Bubble + Strict Text-Input Only)."
+          body: "Handy Mobile Build #${{ github.run_number }} (Strict Focus/Keyboard Detection + Real Voice Equalizer + Unified Lavender Pill)."
           files: app/build/outputs/apk/debug/HandyMobile-natlep.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-pages:
+    needs: build-apk
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'docs'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

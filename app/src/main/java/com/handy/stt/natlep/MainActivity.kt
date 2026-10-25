@@ -33,7 +33,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -41,7 +40,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,7 +49,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Palette Officielle Handy (identique à la photo de la mascotte Gant & texte rose sur fond crème)
 val HandyCreamBg = Color(0xFFFFFDF0)
 val HandyCardWhite = Color(0xFFFFFFFF)
 val HandySoftCreamCard = Color(0xFFF7F3DF)
@@ -60,7 +57,6 @@ val HandyDeepPink = Color(0xFFE86BC5)
 val HandyInkOutline = Color(0xFF2B1E23)
 val HandyMutedBrown = Color(0xFF6E5D63)
 val HandyMintOk = Color(0xFF2ECC71)
-val HandyWarnOrange = Color(0xFFF39C12)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,16 +83,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/**
- * Texte bulle rose avec contour épais brun/noir exactement comme le logo "handy" de la photo !
- */
 @Composable
 fun HandyBubbleLogoText(
     text: String = "handy",
     fontSize: TextUnit = 38.sp
 ) {
     Box(contentAlignment = Alignment.Center) {
-        // Contour épais noir/brun (#2B1E23)
         Text(
             text = text,
             style = TextStyle(
@@ -109,7 +101,6 @@ fun HandyBubbleLogoText(
                 )
             )
         )
-        // Intérieur rose bonbon (#FF9CE3)
         Text(
             text = text,
             style = TextStyle(
@@ -140,6 +131,7 @@ fun HandyCartoonApp(
     val isFieldFocused by HandyTextInjectorService.hasEditableFieldFocused.collectAsState()
     val isOverlayServiceRunning by FloatingSttService.isRunning.collectAsState()
 
+    var masterEnabled by remember { mutableStateOf(modelManager.isUserMasterEnabled()) }
     var activeModelId by remember { mutableStateOf(modelManager.getActiveModelId()) }
     var hideWhenNoInput by remember { mutableStateOf(modelManager.isHideBubbleWhenNoInput()) }
     var lowRamMode by remember { mutableStateOf(modelManager.isLowRamEcoMode()) }
@@ -175,7 +167,9 @@ fun HandyCartoonApp(
     }
 
     fun toggleFloatingService() {
-        if (isOverlayServiceRunning) {
+        if (isOverlayServiceRunning || masterEnabled) {
+            masterEnabled = false
+            modelManager.setUserMasterEnabled(false)
             context.startService(Intent(context, FloatingSttService::class.java).apply {
                 action = "ACTION_STOP_SERVICE"
             })
@@ -207,6 +201,8 @@ fun HandyCartoonApp(
             return
         }
 
+        masterEnabled = true
+        modelManager.setUserMasterEnabled(true)
         val serviceIntent = Intent(context, FloatingSttService::class.java).apply {
             action = "ACTION_SHOW_STANDBY_PILL"
         }
@@ -284,7 +280,6 @@ fun HandyCartoonApp(
         ) {
             Spacer(Modifier.height(10.dp))
 
-            // En-tête officiel avec la Mascotte Gant + Texte Bulle Rose "handy"
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -340,7 +335,6 @@ fun HandyCartoonApp(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // Carte Principale Style Handy Cartoon
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -350,32 +344,28 @@ fun HandyCartoonApp(
                                 .padding(18.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // Aperçu Bulle Inactive (Micro) -> Barre Active (Croix + Onde + Check)
+                            // Aperçu unifié : Même couleur Lavande (#F5EAFF) pour la bulle Micro et la pilule d'onde !
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                // Bulle Inactive : Microphone
                                 Box(
                                     modifier = Modifier
-                                        .size(48.dp)
+                                        .size(46.dp)
                                         .clip(CircleShape)
-                                        .background(HandyPink)
-                                        .border(2.dp, HandyInkOutline, CircleShape),
+                                        .background(PillLavenderBg),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Mic, contentDescription = null, tint = HandyInkOutline)
+                                    Icon(Icons.Default.Mic, contentDescription = null, tint = CheckPurpleBg)
                                 }
 
                                 Icon(Icons.Default.ArrowForward, contentDescription = null, tint = HandyMutedBrown)
 
-                                // Barre Active : [ X ] [ ••|||||•• ] [ ✓ ]
                                 Box(
                                     modifier = Modifier
                                         .size(44.dp)
                                         .clip(CircleShape)
-                                        .background(PillLavenderBg)
-                                        .border(1.5.dp, HandyInkOutline, CircleShape),
+                                        .background(PillLavenderBg),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(Icons.Default.Close, contentDescription = null, tint = WaveDarkInk, modifier = Modifier.size(20.dp))
@@ -383,15 +373,14 @@ fun HandyCartoonApp(
 
                                 Box(
                                     modifier = Modifier
-                                        .width(105.dp)
+                                        .width(108.dp)
                                         .height(44.dp)
                                         .clip(RoundedCornerShape(22.dp))
                                         .background(PillLavenderBg)
-                                        .border(1.5.dp, HandyInkOutline, RoundedCornerShape(22.dp))
                                         .padding(horizontal = 12.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    val demoBars = listOf(4.dp, 5.dp, 9.dp, 13.dp, 16.dp, 18.dp, 16.dp, 13.dp, 9.dp, 5.dp, 4.dp)
+                                    val demoBars = listOf(4.dp, 6.dp, 10.dp, 14.dp, 18.dp, 20.dp, 18.dp, 14.dp, 10.dp, 6.dp, 4.dp)
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -413,8 +402,7 @@ fun HandyCartoonApp(
                                     modifier = Modifier
                                         .size(44.dp)
                                         .clip(CircleShape)
-                                        .background(CheckPurpleBg)
-                                        .border(1.5.dp, HandyInkOutline, CircleShape),
+                                        .background(CheckPurpleBg),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
@@ -424,44 +412,45 @@ fun HandyCartoonApp(
                             Spacer(Modifier.height(14.dp))
 
                             Text(
-                                text = if (isFr) "Actif uniquement dans les zones de texte"
-                                else "Active strictly inside text input fields",
+                                text = if (isFr) "Disparaît automatiquement hors des zones de texte"
+                                else "Automatically hides outside text input fields",
                                 color = HandyInkOutline,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.ExtraBold
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = if (isFr) "La bulle Micro apparaît dès que vous cliquez dans un champ d'écriture et écrit directement votre voix sans copier dans le presse-papier."
-                                else "The Mic bubble pops up whenever you tap a text input field and types your voice directly without touching the clipboard.",
+                                text = if (isFr) "Si vous désactivez la bulle ci-dessous, elle ne se réactivera jamais toute seule. Les 11 barres bougent en synchronisation directe avec votre voix."
+                                else "If you disable the bubble below, it will never re-enable itself. The 11 bars move in real-time sync with your voice.",
                                 color = HandyMutedBrown,
                                 fontSize = 12.sp
                             )
 
                             Spacer(Modifier.height(14.dp))
 
+                            val isActiveNow = isOverlayServiceRunning || masterEnabled
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
                                     .clip(RoundedCornerShape(16.dp))
-                                    .background(if (isOverlayServiceRunning) HandySoftCreamCard else HandyPink)
+                                    .background(if (isActiveNow) HandySoftCreamCard else HandyPink)
                                     .border(2.5.dp, HandyInkOutline, RoundedCornerShape(16.dp))
                                     .clickable { toggleFloatingService() },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        imageVector = if (isOverlayServiceRunning) Icons.Default.StopCircle else Icons.Default.Mic,
+                                        imageVector = if (isActiveNow) Icons.Default.StopCircle else Icons.Default.Mic,
                                         contentDescription = null,
                                         tint = HandyInkOutline
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(
-                                        text = if (isOverlayServiceRunning) {
-                                            if (isFr) "Arrêter la bulle Handy" else "Stop Handy Bubble"
+                                        text = if (isActiveNow) {
+                                            if (isFr) "Désactiver complètement la bulle" else "Completely Disable Bubble"
                                         } else {
-                                            if (isFr) "Activer la bulle Micro Handy" else "Start Handy Mic Bubble"
+                                            if (isFr) "Activer la bulle Micro Handy" else "Enable Handy Mic Bubble"
                                         },
                                         color = HandyInkOutline,
                                         fontWeight = FontWeight.Black,
@@ -471,7 +460,6 @@ fun HandyCartoonApp(
                             }
                         }
 
-                        // Cartes des 2 autorisations requises
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -511,7 +499,6 @@ fun HandyCartoonApp(
                             )
                         }
 
-                        // Zone de saisie de texte de test direct
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -541,9 +528,9 @@ fun HandyCartoonApp(
                                 ) {
                                     Text(
                                         text = if (isFieldFocused) {
-                                            if (isFr) "Zone de saisie active ✓" else "Text input focused ✓"
+                                            if (isFr) "Clavier & Saisie actifs ✓" else "Input focused ✓"
                                         } else {
-                                            if (isFr) "Touchez le champ ↓" else "Tap box below ↓"
+                                            if (isFr) "Hors zone de texte" else "No input focused"
                                         },
                                         color = HandyInkOutline,
                                         fontSize = 10.sp,
@@ -559,8 +546,8 @@ fun HandyCartoonApp(
                                 onValueChange = { testInputText = it },
                                 placeholder = {
                                     Text(
-                                        text = if (isFr) "Cliquez ici pour activer le curseur et tester le micro..."
-                                        else "Tap here to focus cursor and test the mic bubble...",
+                                        text = if (isFr) "Touchez ici : la bulle apparaît. Fermez le clavier : elle disparaît !"
+                                        else "Tap here: bubble appears. Close keyboard: it disappears!",
                                         color = HandyMutedBrown,
                                         fontSize = 12.sp
                                     )
@@ -570,7 +557,6 @@ fun HandyCartoonApp(
                             )
                         }
 
-                        // Historique des phrases écrites
                         if (historyList.isNotEmpty()) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -811,10 +797,10 @@ fun HandyCartoonApp(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         CartoonToggleCard(
-                            title = if (isFr) "Masquer hors des zones de saisie"
-                            else "Hide Outside Text Input Fields",
-                            desc = if (isFr) "La bulle Micro n'apparaît QUE lorsque votre curseur se trouve dans une zone où l'on peut écrire du texte."
-                            else "The Mic bubble only appears when your cursor is inside an editable text box.",
+                            title = if (isFr) "Masquer automatiquement hors zone de texte"
+                            else "Auto-Hide Outside Text Input Fields",
+                            desc = if (isFr) "Dès que vous fermez le clavier ou quittez une zone de saisie, la bulle disparaît totalement."
+                            else "As soon as you close the keyboard or leave a text box, the bubble completely disappears.",
                             checked = hideWhenNoInput,
                             onCheckedChange = {
                                 hideWhenNoInput = it
